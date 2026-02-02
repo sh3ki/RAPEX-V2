@@ -1,0 +1,298 @@
+# 🚀 RAPEX E-Commerce & Delivery Platform
+
+## MVP System Setup Blueprint (Modular, Scalable, OOP-Driven)
+
+---
+
+## 1. Core Engineering Principles (MANDATORY)
+
+This platform **must** be built with the following principles from Day 1:
+
+### ✅ Modular Architecture
+
+* Features are isolated and self-contained
+* Easy to add, remove, or refactor modules
+* Clear boundaries between domains
+
+### ✅ Object-Oriented Programming (OOP)
+
+* Business logic lives in **services, not views**
+* Models are thin
+* Reusable domain logic via classes
+* Clear separation of concerns
+
+### ✅ Component-Driven Design
+
+* UI and backend logic are broken into reusable components
+* Avoid duplication at all costs
+* Consistent behavior across the system
+
+### ✅ Performance-First Mindset
+
+* Caching by default
+* Async by default where possible
+* Minimal DB queries
+* Real-time only where necessary
+
+---
+
+## 2. Final Technology Stack
+
+### Backend
+
+* **Django**
+* **Django REST Framework**
+* **Django Channels**
+* **PostgreSQL** – transactional & relational data
+* **MongoDB** – messages, notifications, logs
+* **Redis** – caching, queues, real-time state
+* **Celery** – background tasks
+
+### Frontend
+
+* **Next.js (App Router)**
+* **TypeScript**
+* **TailwindCSS**
+* **Component-driven UI**
+* **React Query**
+* **WebSockets + SSE**
+
+---
+
+## 3. System Architecture (Modular by Design)
+
+```
+apps/
+ ├── users/
+ ├── merchants/
+ ├── products/
+ ├── orders/
+ ├── payments/
+ ├── riders/
+ ├── notifications/
+ ├── chats/
+ ├── reports/
+ └── settings/
+```
+
+Each module:
+
+* Owns its models
+* Owns its services
+* Owns its API endpoints
+* Owns its permissions
+* Owns its tests
+
+**No cross-app spaghetti.**
+
+---
+
+## 4. Backend Structure (OOP & Clean Architecture)
+
+### Example Django App Structure
+
+```
+orders/
+ ├── models/
+ │   └── order.py
+ ├── serializers/
+ │   └── order_serializer.py
+ ├── services/
+ │   ├── order_creator.py
+ │   ├── order_assigner.py
+ │   └── order_pricing.py
+ ├── selectors/
+ │   └── order_queries.py
+ ├── views/
+ │   └── order_viewset.py
+ ├── permissions/
+ │   └── order_permissions.py
+ ├── signals/
+ ├── tasks/
+ │   └── order_tasks.py
+ ├── websocket/
+ │   └── order_consumer.py
+ └── urls.py
+```
+
+### Why This Matters
+
+* **Views are thin**
+* **Services contain business logic**
+* **Selectors optimize queries**
+* **Tasks handle async**
+* **WebSocket logic is isolated**
+
+---
+
+## 5. Database Strategy (Optimized & OOP-Friendly)
+
+### PostgreSQL
+
+* Core business entities
+* Transactions & payments
+* Orders, products, users
+
+### MongoDB
+
+* Chat messages
+* Notifications
+* Rider location history
+* System logs
+
+### Golden Rules
+
+* No heavy joins on hot paths
+* Use selectors for DB access
+* Snapshot critical data (order totals, prices)
+* Use Redis for fast reads
+
+---
+
+## 6. Caching Strategy (Default, Not Optional)
+
+### Redis Layers
+
+| Layer        | Purpose                   |
+| ------------ | ------------------------- |
+| Query Cache  | Expensive queries         |
+| Object Cache | Products, merchants       |
+| State Cache  | Order status, rider state |
+| Rate Limit   | Auth, checkout            |
+| WebSocket    | Channel layer             |
+
+TTL-based invalidation + event-driven cache busting.
+
+---
+
+## 7. Real-Time Architecture (Cost-Aware)
+
+### WebSockets (Django Channels)
+
+* Rider ↔ Order updates
+* Merchant order notifications
+* Chat system
+
+### SSE (Server-Sent Events)
+
+* User order status
+* Admin dashboards
+* Notification feeds
+
+**Rule:**
+
+> If two-way communication isn’t required → use SSE.
+
+---
+
+## 8. Background Jobs (Async Everything)
+
+### Celery Tasks
+
+* Order creation
+* Payment confirmation
+* Notification dispatch
+* Cache warming
+* Report generation
+
+Keeps APIs blazing fast ⚡
+
+---
+
+## 9. Frontend Architecture (Component-Driven)
+
+### UI Component System
+
+```
+components/
+ ├── ui/
+ │   ├── Button.tsx
+ │   ├── Input.tsx
+ │   ├── Modal.tsx
+ │   └── Badge.tsx
+ ├── layout/
+ │   ├── Header.tsx
+ │   └── Sidebar.tsx
+ ├── forms/
+ ├── tables/
+ └── feedback/
+```
+
+### Rules
+
+* UI components are **dumb**
+* Business logic in hooks/services
+* Consistent design tokens
+* Reusable everywhere
+
+---
+
+## 10. Frontend State & Performance
+
+* React Query caching
+* Optimistic updates
+* WebSocket subscriptions
+* ISR + CDN caching
+* Minimal re-renders
+
+## 10.1 Mobile Responsiveness (MANDATORY)
+
+* All pages and components must be **fully responsive**
+* Must function correctly on:
+  * Mobile phones
+  * Tablets
+  * Desktop screens
+* Must support both **portrait and landscape** orientations
+* Use responsive layouts, fluid grids, and adaptive components
+* Touch targets must be mobile-friendly
+* No broken layouts, overflow issues, or horizontal scrolling on small screens
+* Mobile performance is as critical as desktop performance
+
+**Rule:**
+
+> If it does not work flawlessly on mobile and tablet, it is not acceptable.
+
+---
+
+## 11. Security & Stability
+
+* JWT + refresh tokens
+* Role-based permissions
+* Idempotent APIs
+* Transaction-safe order creation
+* Rate limiting via Redis
+
+---
+
+## 12. Deployment & Scaling Strategy
+
+### MVP
+
+* Monorepo
+* Docker Compose
+* Single PostgreSQL
+* Single Redis
+* Single MongoDB
+
+### Scale Later
+
+* Domain-based microservices
+* PostgreSQL read replicas
+* Redis Cluster
+* MongoDB Atlas
+* Kubernetes
+
+---
+
+## 13. Development Rules (Non-Negotiable)
+
+* No logic in views
+* No DB queries in serializers
+* Services must be testable
+* Components must be reusable
+* Everything versioned
+* Everything documented
+
+---
+
+This is **real company architecture**, not tutorial-level stuff.
