@@ -1,0 +1,269 @@
+# 🧠 GENERAL ENGINEERING INSTRUCTIONS
+
+## (Applies to ALL Pages, APIs, Services, and Features)
+
+These rules are **mandatory** for all frontend and backend implementations.
+
+---
+
+## 1. Architecture & Code Organization (NON-NEGOTIABLE)
+
+### 1.1 Modular Architecture
+
+* Code must be **modular and domain-based**
+* Each feature lives in its own module/app
+* No cross-module coupling without clear interfaces
+* Easy to extend, replace, or remove modules
+
+**Rule:**
+
+> If a feature grows, it must scale by adding files — not complexity.
+
+---
+
+### 1.2 Object-Oriented Programming (OOP)
+
+* Business logic must be implemented using **classes and services**
+* Avoid procedural code for core logic
+* Use composition over inheritance
+* Follow **SOLID principles**
+
+**Backend Rules**
+
+* Models = data only
+* Views/Controllers = request handling only
+* Services = business logic
+* Selectors = database access logic
+
+**Frontend Rules**
+
+* Components = presentation
+* Hooks/Services = logic
+* No business logic inside UI components
+
+---
+
+## 2. Component-Driven Development
+
+### 2.1 Frontend Components
+
+* Build reusable, composable UI components
+* Buttons, inputs, modals, tables, cards must be shared components
+* Components must be:
+
+  * Stateless where possible
+  * Configurable via props
+  * Consistent across the app
+
+**Rule:**
+
+> Never copy-paste UI logic. Extract a component.
+
+---
+
+### 2.2 Backend Components
+
+* Services, validators, serializers, permissions must be reusable
+* No duplicated logic across apps
+* Shared logic goes into common modules
+
+---
+
+## 3. Performance First (DEFAULT MINDSET)
+
+### 3.1 Lightning-Fast by Design
+
+* Optimize for **low latency**
+* Minimize database queries
+* Avoid N+1 queries
+* Use pagination everywhere
+* Precompute expensive values
+
+**Rule:**
+
+> Assume this endpoint will be hit 1M+ times per day.
+
+---
+
+### 3.2 Caching Is Mandatory
+
+* Use Redis aggressively
+* Cache:
+
+  * Frequently accessed data
+  * Expensive queries
+  * Computed values
+* Use proper TTLs
+* Invalidate cache via events
+
+**Rule:**
+
+> If data is read more than written — cache it.
+
+---
+
+## 4. Database Efficiency Rules
+
+### 4.1 Query Discipline
+
+* No DB queries in:
+
+  * Serializers
+  * Templates
+  * UI components
+* Use optimized selectors/repositories
+* Use indexes properly
+* Avoid deep joins on hot paths
+
+---
+
+### 4.2 Data Responsibility
+
+* PostgreSQL → transactional & relational data
+* MongoDB → high-volume, flexible, message-based data
+* Redis → temporary, real-time, cached state
+
+**Rule:**
+
+> Use the right database for the right job.
+
+---
+
+## 5. Real-Time & Async Requirements
+
+### 5.1 Real-Time Communication
+
+* Use **WebSockets** for bi-directional communication
+* Use **SSE** for one-way updates
+* Do NOT poll unless absolutely necessary
+
+---
+
+### 5.2 Async by Default
+
+* Long or heavy operations must be async
+* Use background jobs for:
+
+  * Notifications
+  * Payments
+  * Order processing
+  * Analytics
+  * Cache warming
+
+**Rule:**
+
+> The API should respond fast — work happens later.
+
+---
+
+## 6. Frontend Performance Standards
+
+* Use server-side rendering or static generation where possible
+* Use CDN & edge caching
+* Minimize JS bundle size
+* Use optimistic UI updates
+* Avoid unnecessary re-renders
+
+**Rule:**
+
+> UI must feel instant, even on slow networks.
+
+---
+
+## 7. API Design Rules
+
+* RESTful and predictable
+* Versioned endpoints
+* Idempotent where possible
+* Proper HTTP status codes
+* Pagination required
+* Rate-limited
+
+---
+
+## 8. Security & Reliability
+
+* Role-based access control everywhere
+* Validate all inputs
+* Never trust client data
+* Transactions for critical flows
+* Idempotency keys for payments/orders
+* Graceful error handling
+
+---
+
+## 9. Code Quality & Maintainability
+
+* Clean, readable, self-documenting code
+* No magic numbers or strings
+* Clear naming conventions
+* Reusable utilities
+* Everything testable
+
+**Rule:**
+
+> Code should be easy to read at 3AM.
+
+---
+
+## 10. Scalability Mindset
+
+* Assume future:
+
+  * Microservices
+  * Multiple databases
+  * High traffic
+* Avoid hard-coded logic
+* Feature flags ready
+* Horizontal scaling friendly
+
+---
+
+## 11. Cost-Efficiency Requirements
+
+* Reduce DB hits
+* Cache aggressively
+* Use async processing
+* Avoid unnecessary real-time connections
+* Optimize infrastructure usage
+
+**Rule:**
+
+> Performance without waste.
+
+---
+
+## 12. Mobile Responsiveness
+
+* All pages and components must be **fully responsive**
+* Must work correctly on:
+  * Mobile phones
+  * Tablets
+  * Desktop
+* Support both **portrait and landscape** orientations
+* Use responsive layouts, fluid sizing, and adaptive components
+* Touch targets must be mobile-friendly
+* No horizontal scrolling or broken layouts on small screens
+* Performance on mobile is as important as desktop
+
+**Rule:**
+
+> If it does not work flawlessly on mobile and tablet, it is not acceptable.
+
+
+---
+
+## 13. Documentation & Consistency
+
+* Document every module
+* Explain complex logic
+* Keep structure consistent across apps
+* Follow the same patterns everywhere
+
+---
+
+## 14. Final Golden Rule 🏆
+
+> **If it is not modular, fast, reusable, testable, scalable, and mobile-responsive — it is not acceptable.**
+
+
