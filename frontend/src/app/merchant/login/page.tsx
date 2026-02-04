@@ -1,5 +1,5 @@
-import LoginPage from '@/components/LoginForm'
+import MerchantLoginForm from '@/components/auth/MerchantLoginForm'
 
 export default function MerchantLogin() {
-  return <LoginPage role="merchant" />
+  return <MerchantLoginForm />
 }
