@@ -225,6 +225,15 @@ components/
 * Consistent design tokens
 * Reusable everywhere
 
+### Icon System
+
+* **Use React icon libraries** (Lucide React, React Icons, Heroicons, etc.)
+* Use multiple libraries as needed for best icon coverage
+* **NEVER create manual SVG icons**
+* Centralize icons in a reusable component
+* Consistent icon sizing and styling
+* Easy to swap and maintain
+
 ---
 
 ## 10. Frontend State & Performance
