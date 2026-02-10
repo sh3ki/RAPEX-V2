@@ -17,3 +17,10 @@ export { default as Upload } from './Upload'
 export { default as Form } from './Form'
 export { default as LoadingSpinner } from './LoadingSpinner'
 export { default as FeatureCard } from './FeatureCard'
+export { default as Icon, IconSizes } from './Icon'
+
+// Export Icon types
+export type { IconName } from './Icon'
+
+// Export commonly used icons from the centralized icon library
+export * from './icons'
