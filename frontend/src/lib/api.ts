@@ -37,3 +37,43 @@ apiClient.interceptors.response.use(
 )
 
 export default apiClient
+
+// Merchant Registration API functions
+export const merchantAPI = {
+  // Step 1: General Info
+  submitStep1: async (data: any) => {
+    const response = await apiClient.post('/merchants/register/step1/', data);
+    return response.data;
+  },
+
+  // Step 2: Location
+  submitStep2: async (data: any) => {
+    const response = await apiClient.post('/merchants/register/step2/', data);
+    return response.data;
+  },
+
+  // Step 3: Documents
+  submitStep3: async (formData: FormData) => {
+    const response = await apiClient.post('/merchants/register/step3/', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  },
+
+  // Check uniqueness
+  checkUniqueness: async (field: string, value: string) => {
+    const response = await apiClient.post('/merchants/register/check-uniqueness/', {
+      field,
+      value,
+    });
+    return response.data;
+  },
+
+  // Get registration progress
+  getProgress: async (merchantId: number) => {
+    const response = await apiClient.get(`/merchants/register/progress/${merchantId}/`);
+    return response.data;
+  },
+};
