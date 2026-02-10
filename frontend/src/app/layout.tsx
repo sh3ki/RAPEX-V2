@@ -6,6 +6,11 @@ export const metadata: Metadata = {
   description: 'RAPEX E-Commerce & Delivery Platform - Shop, Sell, and Deliver with Ease',
   keywords: ['e-commerce', 'delivery', 'marketplace', 'shopping'],
   authors: [{ name: 'RAPEX Team' }],
+  icons: {
+    icon: [
+      { url: '/favicon.ico', sizes: 'any' },
+    ],
+  },
 }
 
 export const viewport: Viewport = {
