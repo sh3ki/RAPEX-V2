@@ -61,7 +61,22 @@ These rules are **mandatory** for all frontend and backend implementations.
 
 ---
 
-### 2.2 Backend Components
+### 2.3 Icon System (MANDATORY)
+
+* **USE React icon libraries** (Lucide React, React Icons, Heroicons, Font Awesome React, etc.)
+* **Combine multiple icon libraries** as needed for comprehensive icon coverage
+* **DO NOT create manual SVG icons** or inline SVG code
+* Icons must be imported from libraries and wrapped in reusable components
+* Maintain consistent icon sizing across the application
+* Easy to swap, maintain, and scale
+
+**Rule:**
+
+> Manual SVG icons are not allowed. Use icon libraries only.
+
+---
+
+### 2.4 Backend Components
 
 * Services, validators, serializers, permissions must be reusable
 * No duplicated logic across apps
