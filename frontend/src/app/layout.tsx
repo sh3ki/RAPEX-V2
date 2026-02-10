@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -6,9 +6,9 @@ export const metadata: Metadata = {
   description: 'RAPEX E-Commerce & Delivery Platform - Shop, Sell, and Deliver with Ease',
   keywords: ['e-commerce', 'delivery', 'marketplace', 'shopping'],
   authors: [{ name: 'RAPEX Team' }],
-  icons: {
-    icon: '/favicon.ico',
-  },
+}
+
+export const viewport: Viewport = {
   themeColor: '#f97316',
 }
 
