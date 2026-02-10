@@ -229,25 +229,114 @@ import { Table } from '@/components/ui'
 ---
 
 ### 9. Toast
-Notification toast with auto-dismiss.
+White notification toast with colored left border indicator and 3-second auto-dismiss.
+
+**Design:**
+- White background with colored left border (4px)
+- Colored icon matching the type
+- No progress timer
+- Auto-dismisses after 3 seconds (default)
+- Close button on the right
 
 **Props:**
-- `message`: string
-- `type`: 'success' | 'error' | 'warning' | 'info'
-- `duration`: number (milliseconds)
-- `onClose`: function
+- `message`: string (required)
+- `type`: 'success' | 'error' | 'warning' | 'info' (default: 'info')
+- `duration`: number in milliseconds (default: 3000)
+- `onClose`: function (required)
 
-**Example:**
+**Usage for all notifications:**
 ```tsx
 import { Toast } from '@/components/ui'
+import { useState } from 'react'
 
+// Success notification
 <Toast
-  message="Action completed successfully!"
+  message="Order created successfully!"
   type="success"
-  duration={3000}
-  onClose={() => {}}
+  onClose={() => setShowToast(false)}
+/>
+
+// Error notification
+<Toast
+  message="Failed to process payment"
+  type="error"
+  onClose={() => setShowToast(false)}
+/>
+
+// Warning notification
+<Toast
+  message="Your session will expire soon"
+  type="warning"
+  onClose={() => setShowToast(false)}
+/>
+
+// Info notification
+<Toast
+  message="New update available"
+  type="info"
+  onClose={() => setShowToast(false)}
+/>
+
+// Custom duration (5 seconds)
+<Toast
+  message="Custom timeout message"
+  type="success"
+  duration={5000}
+  onClose={() => setShowToast(false)}
 />
 ```
+
+**Toast Manager Example:**
+```tsx
+import { Toast } from '@/components/ui'
+import { useState } from 'react'
+
+export default function MyComponent() {
+  const [toast, setToast] = useState<{
+    show: boolean
+    message: string
+    type: 'success' | 'error' | 'warning' | 'info'
+  }>({
+    show: false,
+    message: '',
+    type: 'info'
+  })
+
+  const showToast = (message: string, type: typeof toast.type) => {
+    setToast({ show: true, message, type })
+  }
+
+  const handleSubmit = async () => {
+    try {
+      await submitData()
+      showToast('Data saved successfully!', 'success')
+    } catch (error) {
+      showToast('Failed to save data', 'error')
+    }
+  }
+
+  return (
+    <>
+      {toast.show && (
+        <div className="fixed top-4 right-4 z-50">
+          <Toast
+            message={toast.message}
+            type={toast.type}
+            onClose={() => setToast({ ...toast, show: false })}
+          />
+        </div>
+      )}
+      <button onClick={handleSubmit}>Submit</button>
+    </>
+  )
+}
+```
+
+**IMPORTANT:** 
+- Always use this Toast component for ALL notifications (success, error, warning, info)
+- Never create custom notification components
+- Toast automatically times out after 3 seconds
+- No progress bar or timer indicator is shown
 
 ---
 
