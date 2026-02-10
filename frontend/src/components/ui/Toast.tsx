@@ -25,11 +25,28 @@ const Toast: React.FC<ToastProps> = ({
     return () => clearTimeout(timer)
   }, [duration, onClose])
   
-  const styles = {
-    success: 'bg-green-500',
-    error: 'bg-red-500',
-    warning: 'bg-orange-500',
-    info: 'bg-blue-500',
+  // Color indicator styles - left border
+  const borderColors = {
+    success: 'border-green-500',
+    error: 'border-red-500',
+    warning: 'border-orange-500',
+    info: 'border-blue-500',
+  }
+  
+  // Text colors for the message
+  const textColors = {
+    success: 'text-green-700',
+    error: 'text-red-700',
+    warning: 'text-orange-700',
+    info: 'text-blue-700',
+  }
+  
+  // Icon colors
+  const iconColors = {
+    success: 'text-green-600',
+    error: 'text-red-600',
+    warning: 'text-orange-600',
+    info: 'text-blue-600',
   }
   
   const icons = {
@@ -56,10 +73,12 @@ const Toast: React.FC<ToastProps> = ({
   }
   
   return (
-    <div className={`${styles[type]} text-white px-6 py-4 rounded-lg shadow-lg flex items-center gap-3 min-w-[300px] animate-slide-in`}>
-      {icons[type]}
-      <p className="flex-1 font-medium">{message}</p>
-      <button onClick={onClose} className="hover:bg-white/20 p-1 rounded transition-colors">
+    <div className={`bg-white border-l-4 ${borderColors[type]} px-6 py-4 rounded-lg shadow-lg flex items-center gap-3 min-w-[300px] animate-slide-in`}>
+      <div className={iconColors[type]}>
+        {icons[type]}
+      </div>
+      <p className={`flex-1 font-medium ${textColors[type]}`}>{message}</p>
+      <button onClick={onClose} className="hover:bg-gray-100 p-1 rounded transition-colors text-gray-400 hover:text-gray-600">
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
         </svg>
