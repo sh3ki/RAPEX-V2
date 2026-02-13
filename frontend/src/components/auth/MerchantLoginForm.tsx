@@ -30,6 +30,7 @@ export default function MerchantLoginForm() {
   const [rememberMe, setRememberMe] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [isNavigating, setIsNavigating] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -38,7 +39,7 @@ export default function MerchantLoginForm() {
     setTimeout(() => setIsLoading(false), 2000)
   }
 
-  if (isLoading) {
+  if (isLoading || isNavigating) {
     return <LoadingSpinner fullScreen />
   }
 
@@ -424,7 +425,11 @@ export default function MerchantLoginForm() {
             {/* Sign Up Link - Larger */}
             <p className="text-center text-gray-600 text-sm mt-5">
               Don't have an account?{' '}
-              <Link href="/merchant/signup" className="text-orange-600 hover:text-orange-700 font-semibold">
+              <Link 
+                href="/merchant/signup" 
+                className="text-orange-600 hover:text-orange-700 font-semibold"
+                onClick={() => setIsNavigating(true)}
+              >
                 Sign up here
               </Link>
             </p>
