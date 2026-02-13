@@ -48,6 +48,7 @@ export default function MerchantRegistrationForm() {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [isNavigating, setIsNavigating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [merchantId, setMerchantId] = useState<number | null>(null);
 
@@ -468,7 +469,7 @@ export default function MerchantRegistrationForm() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-500 via-pink-500 to-purple-600 relative overflow-hidden flex flex-col items-center justify-center p-4">
       {/* Loading Overlay */}
-      {loading && <LoadingSpinner fullScreen />}
+      {(loading || isNavigating) && <LoadingSpinner fullScreen />}
       
       {/* Abstract Background Pattern - Same as login */}
       <div className="absolute inset-0 overflow-hidden z-0">
@@ -736,7 +737,11 @@ export default function MerchantRegistrationForm() {
             {currentStep === 1 && (
               <div className="flex items-center text-sm text-gray-600">
                 Already have an account?{' '}
-                <a href="/merchant/login" className="ml-1 text-purple-600 hover:text-purple-700 font-semibold hover:underline">
+                <a 
+                  href="/merchant/login" 
+                  className="ml-1 text-purple-600 hover:text-purple-700 font-semibold hover:underline"
+                  onClick={() => setIsNavigating(true)}
+                >
                   Login here
                 </a>
               </div>
