@@ -8,6 +8,7 @@ interface ToastProps {
   message: string
   type?: ToastType
   duration?: number
+  createdAt?: number
   onClose: () => void
 }
 
@@ -15,23 +16,25 @@ const Toast: React.FC<ToastProps> = ({
   message,
   type = 'info',
   duration = 3000,
+  createdAt,
   onClose,
 }) => {
   const [isExiting, setIsExiting] = useState(false)
+  const bornAt = createdAt ?? Date.now()
 
   useEffect(() => {
-    // Timer should only be set once on mount, not reset when onClose changes
+    const elapsed = Date.now() - bornAt
+    const remaining = Math.max(duration - elapsed, 0)
+
     const timer = setTimeout(() => {
       setIsExiting(true)
-      // Wait for fade-out animation to complete before removing
       setTimeout(() => {
         onClose()
-      }, 300) // Match fadeOut animation duration
-    }, duration)
+      }, 300)
+    }, remaining)
     
     return () => clearTimeout(timer)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [duration]) // Only depend on duration, not onClose
+  }, [bornAt, duration, onClose])
   
   // Color indicator styles - left border
   const borderColors = {
@@ -88,7 +91,7 @@ const Toast: React.FC<ToastProps> = ({
   }
 
   return (
-    <div className={`bg-white border-l-4 ${borderColors[type]} px-6 py-4 rounded-lg shadow-lg flex items-center gap-3 min-w-[300px] transition-all duration-300 ${isExiting ? 'animate-fade-out' : 'animate-slide-in'}`}>
+    <div className={`bg-white border-l-4 ${borderColors[type]} px-6 py-4 rounded-lg shadow-lg inline-flex items-center gap-3 w-fit max-w-md transition-all duration-300 ${isExiting ? 'animate-fade-out' : 'animate-slide-in'}`}>
       <div className={iconColors[type]}>
         {icons[type]}
       </div>
