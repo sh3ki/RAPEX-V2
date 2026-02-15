@@ -17,6 +17,7 @@ interface DropdownProps {
   error?: string
   disabled?: boolean
   className?: string
+  required?: boolean
 }
 
 const Dropdown: React.FC<DropdownProps> = ({
@@ -28,6 +29,7 @@ const Dropdown: React.FC<DropdownProps> = ({
   error,
   disabled = false,
   className = '',
+  required = false,
 }) => {
   const [isOpen, setIsOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
@@ -49,7 +51,7 @@ const Dropdown: React.FC<DropdownProps> = ({
     <div className={`w-full ${className}`} ref={dropdownRef}>
       {label && (
         <label className="block text-gray-700 text-sm font-semibold mb-2">
-          {label}
+          {label} {required && <span className="text-red-500">*</span>}
         </label>
       )}
       
@@ -77,7 +79,7 @@ const Dropdown: React.FC<DropdownProps> = ({
         </button>
         
         {isOpen && (
-          <div className="absolute z-10 w-full mt-2 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+          <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-28 overflow-y-auto">
             {options.map((option) => (
               <button
                 key={option.value}
