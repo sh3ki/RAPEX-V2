@@ -22,7 +22,9 @@ import {
   HiUsers
 } from 'react-icons/hi'
 import { FaWallet, FaBoxOpen, FaMoneyBillWave } from 'react-icons/fa'
-import { Button, Input, LoadingSpinner, FeatureCard, Icon } from '@/components/ui'
+import { Button, Input, LoadingOverlay, FeatureCard, Icon } from '@/components/ui'
+import ToastContainer from '@/components/ui/ToastContainer'
+import { useToast } from '@/hooks/useToast'
 
 export default function MerchantLoginForm() {
   const [email, setEmail] = useState('')
@@ -31,16 +33,37 @@ export default function MerchantLoginForm() {
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [isNavigating, setIsNavigating] = useState(false)
+  const { toasts, removeToast, success, error, info } = useToast()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    // Basic validation
+    if (!email.trim()) {
+      error('Please enter your email or username')
+      return
+    }
+    
+    if (!password.trim()) {
+      error('Please enter your password')
+      return
+    }
+    
     setIsLoading(true)
-    // API call will be here
-    setTimeout(() => setIsLoading(false), 2000)
-  }
-
-  if (isLoading || isNavigating) {
-    return <LoadingSpinner fullScreen />
+    
+    try {
+      // API call will be here
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 2000))
+      
+      // On success:
+      success('Welcome back! Redirecting to dashboard...')
+      // Redirect logic here
+    } catch (err: any) {
+      error(err.response?.data?.message || 'Login failed. Please check your credentials and try again.')
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const backgroundIconWrapperClass =
@@ -248,6 +271,12 @@ export default function MerchantLoginForm() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-500 via-pink-500 to-purple-600 relative overflow-hidden flex flex-col items-center justify-center p-4">
+      {/* Toast Notifications */}
+      <ToastContainer toasts={toasts} onRemove={removeToast} />
+      
+      {/* Loading Overlay */}
+      <LoadingOverlay isLoading={isLoading || isNavigating} />
+      
       {/* Abstract Background Pattern - More scattered shapes and icons */}
       <div className="absolute inset-0 overflow-hidden z-0">
         {/* Large geometric shapes scattered everywhere */}
