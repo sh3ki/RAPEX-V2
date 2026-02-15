@@ -9,11 +9,15 @@ export const useToast = () => {
 
   const showToast = useCallback((message: string, type: ToastType = 'info', duration?: number) => {
     const id = `toast-${Date.now()}-${Math.random()}`
+    const createdAt = Date.now()
+    const normalizedDuration = duration ?? 3000
+
     const newToast: ToastMessage = {
       id,
       message,
       type,
-      duration: duration || 3000, // All toasts: 3 seconds
+      duration: normalizedDuration,
+      createdAt,
     }
 
     setToasts((prev) => [...prev, newToast])
