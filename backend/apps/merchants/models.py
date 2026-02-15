@@ -2,6 +2,38 @@ from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.core.validators import RegexValidator
 from django.contrib.postgres.fields import ArrayField
+from pathlib import Path
+
+
+def _merchant_document_upload_path(instance, document_name: str, filename: str) -> str:
+    extension = Path(filename or '').suffix.lower()
+    stored_filename = f"{document_name}{extension}"
+    merchant_id = instance.id or 'pending'
+    return f"merchant/{merchant_id}/documents/{stored_filename}"
+
+
+def selfie_with_id_upload_path(instance, filename):
+    return _merchant_document_upload_path(instance, 'selfie-id', filename)
+
+
+def valid_id_upload_path(instance, filename):
+    return _merchant_document_upload_path(instance, 'id', filename)
+
+
+def barangay_permit_upload_path(instance, filename):
+    return _merchant_document_upload_path(instance, 'brgy-permit', filename)
+
+
+def dti_sec_certificate_upload_path(instance, filename):
+    return _merchant_document_upload_path(instance, 'dti-sec-cert', filename)
+
+
+def bir_certificate_upload_path(instance, filename):
+    return _merchant_document_upload_path(instance, 'bir-cert', filename)
+
+
+def mayors_permit_upload_path(instance, filename):
+    return _merchant_document_upload_path(instance, 'mayors-permit', filename)
 
 
 class MerchantManager(BaseUserManager):
@@ -138,14 +170,14 @@ class Merchant(AbstractBaseUser, PermissionsMixin):
     
     # ============ STEP 3: DOCUMENTS ============
     # Required for all
-    selfie_with_id = models.FileField(upload_to='merchants/documents/selfies/', null=True, blank=True)
-    valid_id = models.FileField(upload_to='merchants/documents/ids/', null=True, blank=True)
+    selfie_with_id = models.FileField(upload_to=selfie_with_id_upload_path, null=True, blank=True)
+    valid_id = models.FileField(upload_to=valid_id_upload_path, null=True, blank=True)
     
     # For registered businesses
-    barangay_permit = models.FileField(upload_to='merchants/documents/permits/', null=True, blank=True)
-    dti_sec_certificate = models.FileField(upload_to='merchants/documents/certificates/', null=True, blank=True)
-    bir_certificate = models.FileField(upload_to='merchants/documents/bir/', null=True, blank=True)
-    mayors_permit = models.FileField(upload_to='merchants/documents/mayors/', null=True, blank=True)
+    barangay_permit = models.FileField(upload_to=barangay_permit_upload_path, null=True, blank=True)
+    dti_sec_certificate = models.FileField(upload_to=dti_sec_certificate_upload_path, null=True, blank=True)
+    bir_certificate = models.FileField(upload_to=bir_certificate_upload_path, null=True, blank=True)
+    mayors_permit = models.FileField(upload_to=mayors_permit_upload_path, null=True, blank=True)
     
     # Optional additional documents
     other_documents = models.JSONField(default=list, blank=True)  # Array of file URLs
