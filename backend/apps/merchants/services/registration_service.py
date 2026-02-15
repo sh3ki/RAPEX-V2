@@ -1,9 +1,13 @@
 import secrets
 import string
 from typing import Dict, Any, Optional
+from decimal import Decimal
 from django.db import transaction
 from django.core.exceptions import ValidationError
 from django.utils import timezone
+from django.core.files.storage import default_storage
+from pathlib import Path
+import uuid
 from apps.merchants.models import Merchant
 
 
@@ -115,7 +119,7 @@ class MerchantRegistrationService:
         
         # Update temp data
         temp_data = merchant.temp_registration_data or {}
-        temp_data[f'step_{step}'] = data
+        temp_data[f'step_{step}'] = cls._normalize_for_json(data)
         merchant.temp_registration_data = temp_data
         merchant.registration_step = step
         
@@ -142,6 +146,17 @@ class MerchantRegistrationService:
         
         merchant.save()
         return merchant
+
+    @staticmethod
+    def _normalize_for_json(value: Any) -> Any:
+        """Convert non-JSON-native values (e.g., Decimal) into JSON-safe values."""
+        if isinstance(value, Decimal):
+            return float(value)
+        if isinstance(value, dict):
+            return {key: MerchantRegistrationService._normalize_for_json(item) for key, item in value.items()}
+        if isinstance(value, list):
+            return [MerchantRegistrationService._normalize_for_json(item) for item in value]
+        return value
     
     @classmethod
     @transaction.atomic
@@ -183,10 +198,11 @@ class MerchantRegistrationService:
             merchant.mayors_permit = documents.get('mayors_permit')
         
         # Handle optional documents
-        other_docs = []
+        other_docs: list[str] = []
         for key, value in documents.items():
             if key.startswith('other_document_'):
-                other_docs.append(value)
+                stored_path = cls._store_other_document(merchant_id, value)
+                other_docs.append(stored_path)
         merchant.other_documents = other_docs
         
         # Generate password
@@ -205,6 +221,14 @@ class MerchantRegistrationService:
         merchant.save()
         
         return merchant, password
+
+    @staticmethod
+    def _store_other_document(merchant_id: int, uploaded_file: Any) -> str:
+        """Store optional document and return persisted relative file path."""
+        extension = Path(uploaded_file.name or '').suffix.lower()
+        unique_suffix = uuid.uuid4().hex
+        storage_path = f"merchant/{merchant_id}/documents/other-document-{unique_suffix}{extension}"
+        return default_storage.save(storage_path, uploaded_file)
     
     @staticmethod
     def _validate_documents(registration_type: str, documents: Dict[str, Any]) -> bool:
