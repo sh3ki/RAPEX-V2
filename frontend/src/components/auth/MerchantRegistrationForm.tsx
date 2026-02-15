@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, ArrowRight, Store } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Store, MapPin } from 'lucide-react';
 import { 
   HiShoppingCart, 
   HiCreditCard, 
@@ -27,9 +27,13 @@ import PhoneInput from '../ui/PhoneInput';
 import MultiSelect from '../ui/MultiSelect';
 import FileUpload from '../ui/FileUpload';
 import MapPicker from '../ui/MapPicker';
+import MapPickerModal from '../ui/MapPickerModal';
+import MapPreview from '../ui/MapPreview';
 import Dropdown from '../ui/Dropdown';
 import Button from '../ui/Button';
-import LoadingSpinner from '../ui/LoadingSpinner';
+import LoadingOverlay from '../ui/LoadingOverlay';
+import ToastContainer from '../ui/ToastContainer';
+import { useToast } from '@/hooks/useToast';
 import { merchantAPI } from '@/lib/api';
 import {
   BUSINESS_CATEGORIES,
@@ -49,8 +53,8 @@ export default function MerchantRegistrationForm() {
   const [currentStep, setCurrentStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [isNavigating, setIsNavigating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [merchantId, setMerchantId] = useState<number | null>(null);
+  const [isMapModalOpen, setIsMapModalOpen] = useState(false);
+  const { toasts, removeToast, success, error, info, warning } = useToast();
 
   // Step 1: General Info
   const [step1Data, setStep1Data] = useState({
@@ -104,6 +108,8 @@ export default function MerchantRegistrationForm() {
     }
     if (!step1Data.email.trim()) errors.email = 'Email is required';
     if (!/\S+@\S+\.\S+/.test(step1Data.email)) errors.email = 'Valid email is required';
+    if (step1Data.business_categories.length === 0) errors.business_categories = 'At least one business category is required';
+    if (step1Data.business_types.length === 0) errors.business_types = 'At least one business type is required';
     if (!step1Data.business_registration) errors.business_registration = 'Business registration type is required';
 
     setStep1Errors(errors);
@@ -146,75 +152,61 @@ export default function MerchantRegistrationForm() {
   };
 
   const handleStep1Submit = async () => {
-    if (!validateStep1()) return;
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const payload = {
-        ...step1Data,
-        merchant_id: merchantId
-      };
-
-      const response = await merchantAPI.submitStep1(payload);
-
-      if (response.success) {
-        setMerchantId(response.data.merchant_id);
-        setCurrentStep(2);
-      } else {
-        setError(response.message || 'Failed to save step 1');
-      }
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'An error occurred');
-      if (err.response?.data?.errors) {
-        setStep1Errors(err.response.data.errors);
-      }
-    } finally {
-      setLoading(false);
+    if (!validateStep1()) {
+      error('Please complete all required fields');
+      return;
     }
+
+    // Just move to next step - data is temporarily stored in state
+    success('Moved on to Step 2');
+    setCurrentStep(2);
   };
 
   const handleStep2Submit = async () => {
-    if (!validateStep2()) return;
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const payload = {
-        ...step2Data,
-        merchant_id: merchantId
-      };
-
-      const response = await merchantAPI.submitStep2(payload);
-
-      if (response.success) {
-        setCurrentStep(3);
-      } else {
-        setError(response.message || 'Failed to save step 2');
-      }
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'An error occurred');
-      if (err.response?.data?.errors) {
-        setStep2Errors(err.response.data.errors);
-      }
-    } finally {
-      setLoading(false);
+    if (!validateStep2()) {
+      error('Please complete all location fields');
+      return;
     }
+
+    // Just move to next step - data is temporarily stored in state
+    success('Moved on to Step 3');
+    setCurrentStep(3);
   };
 
   const handleStep3Submit = async () => {
-    if (!validateStep3()) return;
+    if (!validateStep3()) {
+      error('Please upload all required documents');
+      return;
+    }
 
     setLoading(true);
-    setError(null);
+    info('Submitting your registration... This may take a moment.');
 
     try {
+      // Combine all data from all 3 steps
       const formData = new FormData();
-      formData.append('merchant_id', merchantId?.toString() || '');
+      
+      // Step 1 data
+      formData.append('business_name', step1Data.business_name);
+      formData.append('owner_name', step1Data.owner_name);
+      formData.append('username', step1Data.username);
+      formData.append('phone_number', step1Data.phone_number);
+      formData.append('email', step1Data.email);
+      formData.append('business_categories', JSON.stringify(step1Data.business_categories));
+      formData.append('business_types', JSON.stringify(step1Data.business_types));
+      formData.append('business_registration', step1Data.business_registration);
 
-      // Append files
+      // Step 2 data
+      formData.append('zip_code', step2Data.zip_code);
+      formData.append('province', step2Data.province);
+      formData.append('city', step2Data.city);
+      formData.append('barangay', step2Data.barangay);
+      formData.append('street_name', step2Data.street_name);
+      formData.append('house_number', step2Data.house_number);
+      if (step2Data.latitude) formData.append('latitude', step2Data.latitude.toString());
+      if (step2Data.longitude) formData.append('longitude', step2Data.longitude.toString());
+
+      // Step 3 data - files
       if (step3Data.selfie_with_id) formData.append('selfie_with_id', step3Data.selfie_with_id);
       if (step3Data.valid_id) formData.append('valid_id', step3Data.valid_id);
       if (step3Data.barangay_permit) formData.append('barangay_permit', step3Data.barangay_permit);
@@ -227,19 +219,25 @@ export default function MerchantRegistrationForm() {
         formData.append('other_documents', file);
       });
 
+      // Submit all data at once
       const response = await merchantAPI.submitStep3(formData);
 
       if (response.success) {
-        // Show success and redirect to login
-        alert('Registration completed! Check your email for login credentials.');
-        router.push('/merchant/login');
+        success('🎉 Registration completed successfully! Check your email for login credentials.');
+        setTimeout(() => {
+          router.push('/merchant/login');
+        }, 2000);
       } else {
-        setError(response.message || 'Failed to complete registration');
+        error(response.message || 'Failed to complete registration. Please try again.');
       }
     } catch (err: any) {
-      setError(err.response?.data?.message || 'An error occurred');
+      error(err.response?.data?.message || 'Unable to complete registration. Please check your information and try again.');
       if (err.response?.data?.errors) {
-        setStep3Errors(err.response.data.errors);
+        // Distribute errors to appropriate step states
+        const errors = err.response.data.errors;
+        setStep1Errors(errors);
+        setStep2Errors(errors);
+        setStep3Errors(errors);
       }
     } finally {
       setLoading(false);
@@ -255,7 +253,6 @@ export default function MerchantRegistrationForm() {
   const handleBack = () => {
     if (currentStep > 1) {
       setCurrentStep(currentStep - 1);
-      setError(null);
     }
   };
 
@@ -468,8 +465,11 @@ export default function MerchantRegistrationForm() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-500 via-pink-500 to-purple-600 relative overflow-hidden flex flex-col items-center justify-center p-4">
+      {/* Toast Notifications */}
+      <ToastContainer toasts={toasts} onRemove={removeToast} />
+      
       {/* Loading Overlay */}
-      {(loading || isNavigating) && <LoadingSpinner fullScreen />}
+      <LoadingOverlay isLoading={loading || isNavigating} />
       
       {/* Abstract Background Pattern - Same as login */}
       <div className="absolute inset-0 overflow-hidden z-0">
@@ -511,13 +511,14 @@ export default function MerchantRegistrationForm() {
               left,
             }}
           >
-            <IconComponent
-              className={`${backgroundIconClass} ${color}`}
+            <div
               style={{
                 opacity,
                 transform: rotate ? `rotate(${rotate}deg)` : undefined,
               }}
-            />
+            >
+              <IconComponent className={`${backgroundIconClass} ${color}`} />
+            </div>
           </div>
         ))}
       </div>
@@ -540,12 +541,6 @@ export default function MerchantRegistrationForm() {
 
         {/* Form Content */}
         <div className="px-6 sm:px-8 pb-8">
-          {error && (
-            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-sm text-red-600">{error}</p>
-            </div>
-          )}
-
           {/* Step 1: General Info */}
           {currentStep === 1 && (
             <div className="space-y-6">
@@ -600,6 +595,8 @@ export default function MerchantRegistrationForm() {
                   options={BUSINESS_CATEGORIES}
                   selected={step1Data.business_categories}
                   onChange={(selected) => setStep1Data({ ...step1Data, business_categories: selected })}
+                  error={step1Errors.business_categories}
+                  required
                 />
 
                 <MultiSelect
@@ -607,6 +604,8 @@ export default function MerchantRegistrationForm() {
                   options={BUSINESS_TYPES}
                   selected={step1Data.business_types}
                   onChange={(selected) => setStep1Data({ ...step1Data, business_types: selected })}
+                  error={step1Errors.business_types}
+                  required
                 />
 
                 <div className="md:col-span-2">
@@ -614,7 +613,7 @@ export default function MerchantRegistrationForm() {
                     label="Business Registration"
                     options={BUSINESS_REGISTRATION_TYPES}
                     value={step1Data.business_registration}
-                    onChange={(value) => setStep1Data({ ...step1Data, business_registration: value })}
+                    onChange={(value) => setStep1Data({ ...step1Data, business_registration: String(value) })}
                     error={step1Errors.business_registration}
                     required
                   />
@@ -678,11 +677,25 @@ export default function MerchantRegistrationForm() {
                 />
 
                 <div className="md:col-span-2">
-                  <MapPicker
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Location Coordinates
+                  </label>
+                  
+                  {/* Map Display */}
+                  <MapPreview
                     latitude={step2Data.latitude}
                     longitude={step2Data.longitude}
-                    onChange={(lat, lng) => setStep2Data({ ...step2Data, latitude: lat, longitude: lng })}
                   />
+
+                  {/* Pick from Map Button */}
+                  <button
+                    type="button"
+                    onClick={() => setIsMapModalOpen(true)}
+                    className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-orange-500 to-purple-600 text-white rounded-lg hover:from-orange-600 hover:to-purple-700 transition-all shadow-md hover:shadow-lg"
+                  >
+                    <MapPin className="w-5 h-5" />
+                    <span className="font-semibold">Pick from Map</span>
+                  </button>
                 </div>
               </div>
             </div>
@@ -763,6 +776,18 @@ export default function MerchantRegistrationForm() {
       <div className="relative z-10 mt-6 text-center text-white/80 text-sm">
         © 2025 RAPEX. All rights reserved.
       </div>
+
+      {/* Map Picker Modal */}
+      <MapPickerModal
+        isOpen={isMapModalOpen}
+        onClose={() => setIsMapModalOpen(false)}
+        currentLatitude={step2Data.latitude}
+        currentLongitude={step2Data.longitude}
+        onLocationSelect={(lat, lng) => {
+          setStep2Data({ ...step2Data, latitude: lat, longitude: lng });
+          info(`Location set: ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+        }}
+      />
     </div>
   );
 }
