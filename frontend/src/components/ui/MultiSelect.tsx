@@ -10,6 +10,7 @@ interface MultiSelectProps {
   onChange: (selected: string[]) => void;
   placeholder?: string;
   error?: string;
+  required?: boolean;
 }
 
 export default function MultiSelect({
@@ -18,7 +19,8 @@ export default function MultiSelect({
   selected,
   onChange,
   placeholder = 'Select options',
-  error
+  error,
+  required = false
 }: MultiSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -49,7 +51,7 @@ export default function MultiSelect({
   return (
     <div className="w-full" ref={dropdownRef}>
       <label className="block text-sm font-medium text-gray-700 mb-1">
-        {label}
+        {label} {required && <span className="text-red-500">*</span>}
       </label>
       
       <div className="relative">
