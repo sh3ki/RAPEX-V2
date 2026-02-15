@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, ArrowRight, Store, MapPin } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Store, MapPin, Plus, Trash2, AlertTriangle } from 'lucide-react';
 import { 
   HiShoppingCart, 
   HiCreditCard, 
@@ -32,6 +32,7 @@ import MapPreview from '../ui/MapPreview';
 import Dropdown from '../ui/Dropdown';
 import Button from '../ui/Button';
 import LoadingOverlay from '../ui/LoadingOverlay';
+import LoadingSpinner from '../ui/LoadingSpinner';
 import ToastContainer from '../ui/ToastContainer';
 import { useToast } from '@/hooks/useToast';
 import { merchantAPI } from '@/lib/api';
@@ -54,6 +55,8 @@ export default function MerchantRegistrationForm() {
   const [loading, setLoading] = useState(false);
   const [isNavigating, setIsNavigating] = useState(false);
   const [isMapModalOpen, setIsMapModalOpen] = useState(false);
+  const [isReviewingRegistration, setIsReviewingRegistration] = useState(false);
+  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   const { toasts, removeToast, success, error, info, warning } = useToast();
 
   // Step 1: General Info
@@ -94,6 +97,7 @@ export default function MerchantRegistrationForm() {
     mayors_permit: null as File | null,
     other_documents: [] as File[]
   });
+  const [otherDocumentSlots, setOtherDocumentSlots] = useState<Array<File | null>>([null]);
 
   const [step3Errors, setStep3Errors] = useState<Record<string, string>>({});
 
@@ -177,7 +181,17 @@ export default function MerchantRegistrationForm() {
 
     // Just move to next step - data is temporarily stored in state
     success('Moved on to Step 3');
+    setIsReviewingRegistration(false);
     setCurrentStep(3);
+  };
+
+  const handleStep3Review = () => {
+    if (!validateStep3()) {
+      error('Please upload all required documents');
+      return;
+    }
+
+    setIsReviewingRegistration(true);
   };
 
   const handleStep3Submit = async () => {
@@ -210,8 +224,8 @@ export default function MerchantRegistrationForm() {
       formData.append('barangay', step2Data.barangay);
       formData.append('street_name', step2Data.street_name);
       formData.append('house_number', step2Data.house_number);
-      if (step2Data.latitude) formData.append('latitude', step2Data.latitude.toString());
-      if (step2Data.longitude) formData.append('longitude', step2Data.longitude.toString());
+      if (step2Data.latitude !== null) formData.append('latitude', step2Data.latitude.toFixed(6));
+      if (step2Data.longitude !== null) formData.append('longitude', step2Data.longitude.toFixed(6));
 
       // Step 3 data - files
       if (step3Data.selfie_with_id) formData.append('selfie_with_id', step3Data.selfie_with_id);
@@ -238,7 +252,19 @@ export default function MerchantRegistrationForm() {
         error(response.message || 'Failed to complete registration. Please try again.');
       }
     } catch (err: any) {
-      error(err.response?.data?.message || 'Unable to complete registration. Please check your information and try again.');
+      const apiMessage = err.response?.data?.message;
+      const apiErrors = err.response?.data?.errors;
+
+      if (apiMessage) {
+        error(apiMessage);
+      } else if (apiErrors && typeof apiErrors === 'object') {
+        const firstError = Object.values(apiErrors)[0];
+        const firstMessage = Array.isArray(firstError) ? String(firstError[0]) : String(firstError);
+        error(firstMessage || 'Unable to complete registration. Please check your information and try again.');
+      } else {
+        error('Unable to complete registration. Please check your information and try again.');
+      }
+
       if (err.response?.data?.errors) {
         // Distribute errors to appropriate step states
         const errors = err.response.data.errors;
@@ -254,10 +280,15 @@ export default function MerchantRegistrationForm() {
   const handleNext = () => {
     if (currentStep === 1) handleStep1Submit();
     else if (currentStep === 2) handleStep2Submit();
-    else if (currentStep === 3) handleStep3Submit();
+    else if (currentStep === 3) handleStep3Review();
   };
 
   const handleBack = () => {
+    if (currentStep === 3 && isReviewingRegistration) {
+      setIsReviewingRegistration(false);
+      return;
+    }
+
     if (currentStep > 1) {
       setCurrentStep(currentStep - 1);
     }
@@ -265,6 +296,31 @@ export default function MerchantRegistrationForm() {
 
   const getRequiredDocuments = () => {
     return REQUIRED_DOCUMENTS[step1Data.business_registration as keyof typeof REQUIRED_DOCUMENTS] || [];
+  };
+
+  const removeOtherDocumentSlot = (indexToRemove: number) => {
+    setOtherDocumentSlots((previousSlots) => {
+      const updatedSlots = previousSlots.filter((_, index) => index !== indexToRemove);
+      const ensuredSlots = updatedSlots.length > 0 ? updatedSlots : [null];
+      const validFiles = ensuredSlots.filter((item): item is File => item instanceof File);
+
+      setStep3Data((previousData) => ({
+        ...previousData,
+        other_documents: validFiles,
+      }));
+
+      return ensuredSlots;
+    });
+
+    setStep3Errors((prev) => {
+      const next = { ...prev };
+      delete next.other_documents;
+      return next;
+    });
+  };
+
+  const getFileDisplayName = (file: File | null) => {
+    return file ? file.name : 'Not uploaded';
   };
 
   const backgroundIconWrapperClass =
@@ -715,43 +771,153 @@ export default function MerchantRegistrationForm() {
           {/* Step 3: Documents */}
           {currentStep === 3 && (
             <div className="space-y-6">
-              <h2 className="text-xl font-semibold text-gray-900">Required Documents</h2>
-              <p className="text-sm text-gray-600">
-                Registration type: <strong>{BUSINESS_REGISTRATION_TYPES.find(t => t.value === step1Data.business_registration)?.label}</strong>
-              </p>
+              {!isReviewingRegistration ? (
+                <>
+                  <h2 className="text-xl font-semibold text-gray-900">Required Documents</h2>
+                  <p className="text-sm text-gray-600">
+                    Registration type: <strong>{BUSINESS_REGISTRATION_TYPES.find(t => t.value === step1Data.business_registration)?.label}</strong>
+                  </p>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {getRequiredDocuments().map((doc) => (
-                  <div key={doc.key} className={doc.key === 'other_documents' ? 'md:col-span-2' : ''}>
-                    <FileUpload
-                      label={doc.label}
-                      required={doc.required}
-                      accept={doc.key === 'selfie_with_id' || doc.key === 'valid_id' ? 'image/*' : 'image/*,.pdf,application/pdf'}
-                      cameraOnly={doc.key === 'selfie_with_id' || doc.key === 'valid_id'}
-                      multiple={doc.key === 'other_documents'}
-                      value={step3Data[doc.key as keyof typeof step3Data] as File | File[] | null}
-                      onChange={(file) => {
-                        if (doc.key === 'other_documents') {
-                          if (file) {
-                            setStep3Data({ ...step3Data, other_documents: [...step3Data.other_documents, file] });
-                          } else {
-                            setStep3Data({ ...step3Data, other_documents: [] });
-                          }
-                        } else {
-                          setStep3Data({ ...step3Data, [doc.key]: file });
-                        }
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {getRequiredDocuments().map((doc) => (
+                      <div key={doc.key} className={doc.key === 'other_documents' ? 'md:col-span-2' : ''}>
+                        {doc.key === 'other_documents' ? (
+                          <div className="space-y-4">
+                            {otherDocumentSlots.map((slotFile, index) => (
+                              <div key={`other-doc-${index}`} className="space-y-2">
+                                <FileUpload
+                                  label={`${doc.label} ${index + 1}`}
+                                  required={false}
+                                  accept="image/*,.pdf,application/pdf"
+                                  value={slotFile}
+                                  onChange={(file) => {
+                                    const updatedSlots = [...otherDocumentSlots];
+                                    updatedSlots[index] = file;
+                                    setOtherDocumentSlots(updatedSlots);
 
-                        setStep3Errors((prev) => {
-                          const next = { ...prev };
-                          delete next[doc.key];
-                          return next;
-                        });
-                      }}
-                      error={step3Errors[doc.key]}
-                    />
+                                    const validFiles = updatedSlots.filter((item): item is File => item instanceof File);
+                                    setStep3Data({ ...step3Data, other_documents: validFiles });
+
+                                    setStep3Errors((prev) => {
+                                      const next = { ...prev };
+                                      delete next[doc.key];
+                                      return next;
+                                    });
+                                  }}
+                                  error={step3Errors[doc.key]}
+                                />
+
+                                {index > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => removeOtherDocumentSlot(index)}
+                                    className="inline-flex items-center gap-1 text-xs text-red-600 hover:text-red-700"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                    Remove Document
+                                  </button>
+                                )}
+                              </div>
+                            ))}
+
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              onClick={() => setOtherDocumentSlots((prev) => [...prev, null])}
+                              className="w-full md:w-auto"
+                            >
+                              <Plus className="w-4 h-4 mr-2" />
+                              Add Document
+                            </Button>
+                          </div>
+                        ) : (
+                          <FileUpload
+                            label={doc.label}
+                            required={doc.required}
+                            accept={doc.key === 'selfie_with_id' || doc.key === 'valid_id' ? 'image/*' : 'image/*,.pdf,application/pdf'}
+                            cameraOnly={doc.key === 'selfie_with_id' || doc.key === 'valid_id'}
+                            value={step3Data[doc.key as keyof typeof step3Data] as File | File[] | null}
+                            onChange={(file) => {
+                              setStep3Data({ ...step3Data, [doc.key]: file });
+
+                              setStep3Errors((prev) => {
+                                const next = { ...prev };
+                                delete next[doc.key];
+                                return next;
+                              });
+                            }}
+                            error={step3Errors[doc.key]}
+                          />
+                        )}
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                </>
+              ) : (
+                <div className="space-y-6">
+                  <h2 className="text-xl font-semibold text-gray-900">Review Registration</h2>
+                  <p className="text-sm text-gray-600">
+                    Please review your information before final submission.
+                  </p>
+
+                  <div className="space-y-4">
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-800 mb-3">Step 1 - General Information</h3>
+                      <div className="rounded-xl border border-gray-200 bg-white p-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-gray-700">
+                          <p><span className="font-medium">Business Name:</span> {step1Data.business_name}</p>
+                          <p><span className="font-medium">Owner Name:</span> {step1Data.owner_name}</p>
+                          <p><span className="font-medium">Username:</span> {step1Data.username}</p>
+                          <p><span className="font-medium">Phone Number:</span> {step1Data.phone_number}</p>
+                          <p><span className="font-medium">Email:</span> {step1Data.email}</p>
+                          <p><span className="font-medium">Registration Type:</span> {BUSINESS_REGISTRATION_TYPES.find(t => t.value === step1Data.business_registration)?.label}</p>
+                          <p><span className="font-medium">Categories:</span> {step1Data.business_categories.join(', ') || 'N/A'}</p>
+                          <p><span className="font-medium">Business Types:</span> {step1Data.business_types.join(', ') || 'N/A'}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-800 mb-3">Step 2 - Location</h3>
+                      <div className="rounded-xl border border-gray-200 bg-white p-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-gray-700">
+                          <p><span className="font-medium">Zip Code:</span> {step2Data.zip_code}</p>
+                          <p><span className="font-medium">Province:</span> {step2Data.province}</p>
+                          <p><span className="font-medium">City:</span> {step2Data.city}</p>
+                          <p><span className="font-medium">Barangay:</span> {step2Data.barangay}</p>
+                          <p><span className="font-medium">Street Name:</span> {step2Data.street_name}</p>
+                          <p><span className="font-medium">House Number:</span> {step2Data.house_number}</p>
+                          <p><span className="font-medium">Latitude:</span> {step2Data.latitude ?? 'N/A'}</p>
+                          <p><span className="font-medium">Longitude:</span> {step2Data.longitude ?? 'N/A'}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-800 mb-3">Step 3 - Documents</h3>
+                      <div className="rounded-xl border border-gray-200 bg-white p-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-gray-700">
+                          <p><span className="font-medium">Selfie with ID:</span> {getFileDisplayName(step3Data.selfie_with_id)}</p>
+                          <p><span className="font-medium">Valid ID:</span> {getFileDisplayName(step3Data.valid_id)}</p>
+                          {(step1Data.business_registration === 'REGISTERED_NON_VAT' || step1Data.business_registration === 'REGISTERED_VAT') && (
+                            <>
+                              <p><span className="font-medium">Barangay Permit:</span> {getFileDisplayName(step3Data.barangay_permit)}</p>
+                              <p><span className="font-medium">DTI/SEC Certificate:</span> {getFileDisplayName(step3Data.dti_sec_certificate)}</p>
+                            </>
+                          )}
+                          {step1Data.business_registration === 'REGISTERED_VAT' && (
+                            <>
+                              <p><span className="font-medium">BIR Certificate:</span> {getFileDisplayName(step3Data.bir_certificate)}</p>
+                              <p><span className="font-medium">Mayor's Permit:</span> {getFileDisplayName(step3Data.mayors_permit)}</p>
+                            </>
+                          )}
+                          <p className="md:col-span-2"><span className="font-medium">Other Documents:</span> {step3Data.other_documents.length > 0 ? step3Data.other_documents.map((doc) => doc.name).join(', ') : 'None'}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -781,14 +947,24 @@ export default function MerchantRegistrationForm() {
               </div>
             )}
 
-            <Button
-              onClick={handleNext}
-              disabled={loading}
-              className="ml-auto"
-            >
-              {currentStep === 3 ? 'Complete Registration' : 'Next'}
-              {currentStep < 3 && <ArrowRight className="w-5 h-5 ml-2" />}
-            </Button>
+            {currentStep === 3 && isReviewingRegistration ? (
+              <Button
+                onClick={() => setIsConfirmModalOpen(true)}
+                disabled={loading}
+                className="ml-auto"
+              >
+                Complete Registration
+              </Button>
+            ) : (
+              <Button
+                onClick={handleNext}
+                disabled={loading}
+                className="ml-auto"
+              >
+                {currentStep === 3 ? 'Review Registration' : 'Next'}
+                {currentStep < 3 && <ArrowRight className="w-5 h-5 ml-2" />}
+              </Button>
+            )}
           </div>
         </div>
       </div>
@@ -814,6 +990,55 @@ export default function MerchantRegistrationForm() {
           info(`Location set: ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
         }}
       />
+
+      {isConfirmModalOpen && (
+        <div className="fixed inset-0 z-[10001] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/60"
+            onClick={() => {
+              if (!loading) {
+                setIsConfirmModalOpen(false);
+              }
+            }}
+          />
+          <div className="relative w-full max-w-md rounded-xl bg-white shadow-2xl p-6">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="w-6 h-6 text-orange-500 mt-0.5" />
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Confirm Registration</h3>
+                <p className="text-sm text-gray-600 mt-1">
+                  Are you sure you want to complete registration? This will save all records and upload all documents.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-6 flex justify-end gap-3">
+              <Button
+                variant="secondary"
+                onClick={() => setIsConfirmModalOpen(false)}
+                disabled={loading}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={async () => {
+                  await handleStep3Submit();
+                }}
+                disabled={loading}
+              >
+                {loading ? (
+                  <span className="inline-flex items-center gap-2">
+                    <LoadingSpinner size="sm" />
+                    Processing...
+                  </span>
+                ) : (
+                  'Confirm'
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
