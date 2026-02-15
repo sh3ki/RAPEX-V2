@@ -90,12 +90,8 @@ class Step3Serializer(serializers.Serializer):
     bir_certificate = serializers.FileField(required=False, allow_null=True)
     mayors_permit = serializers.FileField(required=False, allow_null=True)
     
-    # Optional additional documents (can be multiple)
-    other_documents = serializers.ListField(
-        child=serializers.FileField(),
-        required=False,
-        allow_empty=True
-    )
+    # Optional additional documents (handled via request.FILES.getlist in view)
+    other_documents = serializers.FileField(required=False)
     
     def validate(self, data):
         """Validate documents based on business registration type"""
