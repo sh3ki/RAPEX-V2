@@ -4,6 +4,8 @@ from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.permissions import AllowAny
 from django.db import transaction
+import json
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from apps.merchants.models import Merchant
 from apps.merchants.serializers.merchant_serializers import (
     Step1Serializer,
@@ -14,6 +16,19 @@ from apps.merchants.serializers.merchant_serializers import (
 )
 from apps.merchants.services.registration_service import MerchantRegistrationService
 from apps.merchants.services.email_service import EmailService
+
+
+def normalize_coordinate(value):
+    """Normalize coordinate values to 6 decimal places for serializer compatibility."""
+    if value in (None, ''):
+        return value
+
+    try:
+        decimal_value = Decimal(str(value))
+        normalized = decimal_value.quantize(Decimal('0.000001'), rounding=ROUND_HALF_UP)
+        return str(normalized)
+    except (InvalidOperation, ValueError, TypeError):
+        return value
 
 
 class RegistrationStep1View(APIView):
@@ -91,10 +106,18 @@ class RegistrationStep2View(APIView):
                 }, status=status.HTTP_400_BAD_REQUEST)
             
             # Save step data
+            latitude = normalize_coordinate(serializer.validated_data.get('latitude'))
+            longitude = normalize_coordinate(serializer.validated_data.get('longitude'))
+            step2_data = {
+                **serializer.validated_data,
+                'latitude': latitude,
+                'longitude': longitude,
+            }
+
             merchant = MerchantRegistrationService.save_step_data(
                 merchant_id=merchant_id,
                 step=2,
-                data=serializer.validated_data
+                data=step2_data
             )
             
             return Response({
@@ -131,25 +154,89 @@ class RegistrationStep3View(APIView):
     def post(self, request):
         """Save Step 3 data and complete registration"""
         merchant_id = request.data.get('merchant_id')
-        
-        if not merchant_id:
-            return Response({
-                'success': False,
-                'message': 'Merchant ID is required'
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        serializer = Step3Serializer(
-            data=request.data,
-            context={'merchant_id': merchant_id}
-        )
-        
-        if not serializer.is_valid():
-            return Response({
-                'success': False,
-                'errors': serializer.errors
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
+
         try:
+            with transaction.atomic():
+                if not merchant_id:
+                    raw_categories = request.data.get('business_categories', '[]')
+                    raw_types = request.data.get('business_types', '[]')
+
+                    if isinstance(raw_categories, str):
+                        try:
+                            business_categories = json.loads(raw_categories)
+                        except json.JSONDecodeError:
+                            business_categories = []
+                    else:
+                        business_categories = raw_categories
+
+                    if isinstance(raw_types, str):
+                        try:
+                            business_types = json.loads(raw_types)
+                        except json.JSONDecodeError:
+                            business_types = []
+                    else:
+                        business_types = raw_types
+
+                    step1_payload = {
+                        'business_name': request.data.get('business_name'),
+                        'owner_name': request.data.get('owner_name'),
+                        'username': request.data.get('username'),
+                        'phone_number': request.data.get('phone_number'),
+                        'email': request.data.get('email'),
+                        'business_categories': business_categories,
+                        'business_types': business_types,
+                        'business_registration': request.data.get('business_registration'),
+                    }
+
+                    step1_serializer = Step1Serializer(data=step1_payload)
+                    if not step1_serializer.is_valid():
+                        return Response({
+                            'success': False,
+                            'errors': step1_serializer.errors
+                        }, status=status.HTTP_400_BAD_REQUEST)
+
+                    merchant = MerchantRegistrationService.save_step_data(
+                        merchant_id=None,
+                        step=1,
+                        data=step1_serializer.validated_data
+                    )
+
+                    step2_payload = {
+                        'zip_code': request.data.get('zip_code'),
+                        'province': request.data.get('province'),
+                        'city': request.data.get('city'),
+                        'barangay': request.data.get('barangay'),
+                        'street_name': request.data.get('street_name'),
+                        'house_number': request.data.get('house_number'),
+                        'latitude': normalize_coordinate(request.data.get('latitude')),
+                        'longitude': normalize_coordinate(request.data.get('longitude')),
+                    }
+
+                    step2_serializer = Step2Serializer(data=step2_payload)
+                    if not step2_serializer.is_valid():
+                        return Response({
+                            'success': False,
+                            'errors': step2_serializer.errors
+                        }, status=status.HTTP_400_BAD_REQUEST)
+
+                    merchant = MerchantRegistrationService.save_step_data(
+                        merchant_id=merchant.id,
+                        step=2,
+                        data=step2_serializer.validated_data
+                    )
+                    merchant_id = merchant.id
+
+                serializer = Step3Serializer(
+                    data=request.data,
+                    context={'merchant_id': merchant_id}
+                )
+
+                if not serializer.is_valid():
+                    return Response({
+                        'success': False,
+                        'errors': serializer.errors
+                    }, status=status.HTTP_400_BAD_REQUEST)
+
             # Prepare documents dictionary
             documents = {
                 'selfie_with_id': request.FILES.get('selfie_with_id'),
