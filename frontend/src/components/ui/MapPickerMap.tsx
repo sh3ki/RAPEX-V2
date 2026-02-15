@@ -8,6 +8,7 @@ interface MapPickerMapProps {
   selectedLat: number | null
   selectedLng: number | null
   onLocationClick: (lat: number, lng: number) => void
+  onMapReady?: (centerFn: () => void) => void
 }
 
 /**
@@ -19,6 +20,7 @@ const MapPickerMap: React.FC<MapPickerMapProps> = ({
   selectedLat,
   selectedLng,
   onLocationClick,
+  onMapReady,
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<any>(null)
@@ -27,10 +29,17 @@ const MapPickerMap: React.FC<MapPickerMapProps> = ({
   const markerIconRef = useRef<any>(null)
   const onLocationClickRef = useRef(onLocationClick)
   const resizeTimerRef = useRef<number | null>(null)
+  const selectedLatRef = useRef(selectedLat)
+  const selectedLngRef = useRef(selectedLng)
 
   useEffect(() => {
     onLocationClickRef.current = onLocationClick
   }, [onLocationClick])
+
+  useEffect(() => {
+    selectedLatRef.current = selectedLat
+    selectedLngRef.current = selectedLng
+  }, [selectedLat, selectedLng])
 
   useEffect(() => {
     let active = true
@@ -55,6 +64,9 @@ const MapPickerMap: React.FC<MapPickerMapProps> = ({
       const map = L.map(containerRef.current, {
         zoomControl: true,
         scrollWheelZoom: true,
+        touchZoom: true, // Enable pinch zoom on mobile
+        dragging: true, // Enable map dragging
+        boxZoom: false, // Disable box zoom (not mobile-friendly)
       }).setView(center, 13)
 
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -67,6 +79,16 @@ const MapPickerMap: React.FC<MapPickerMapProps> = ({
       })
 
       mapRef.current = map
+
+      // Provide center function to parent
+      if (onMapReady) {
+        onMapReady(() => {
+          if (mapRef.current && selectedLatRef.current !== null && selectedLngRef.current !== null) {
+            mapRef.current.setView([selectedLatRef.current, selectedLngRef.current], mapRef.current.getZoom())
+          }
+        })
+      }
+
       resizeTimerRef.current = window.setTimeout(() => {
         try {
           if (!mapRef.current) return
@@ -122,8 +144,9 @@ const MapPickerMap: React.FC<MapPickerMapProps> = ({
   return (
     <div
       ref={containerRef}
-      className="w-full h-full"
+      className="w-full h-full touch-pan-x touch-pan-y touch-pinch-zoom"
       aria-label="OpenStreetMap picker"
+      style={{ touchAction: 'pan-x pan-y pinch-zoom' }}
     />
   )
 }
