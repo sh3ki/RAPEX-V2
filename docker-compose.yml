@@ -37,7 +37,7 @@ services:
       ALLOWED_HOSTS: "localhost,127.0.0.1,backend"
       CORS_ALLOWED_ORIGINS: "http://localhost:3000,http://frontend:3000"
     ports:
-      - "8001:8000"
+      - "8000:8000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -59,8 +59,14 @@ services:
       dockerfile: Dockerfile
     container_name: rapex_frontend
     environment:
-      NEXT_PUBLIC_API_URL: "http://backend:8000/api"
+      NEXT_PUBLIC_API_URL: "http://localhost:8000/api"
+      # Fix file watching in Docker
       WATCHPACK_POLLING: "true"
+      CHOKIDAR_USEPOLLING: "true"
+      # Suppress React DevTools message
+      NEXT_TELEMETRY_DISABLED: "1"
+      # Node environment
+      NODE_ENV: "development"
     ports:
       - "3000:3000"
     depends_on:
