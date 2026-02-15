@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 
 export type ToastType = 'success' | 'error' | 'warning' | 'info'
 
@@ -17,13 +17,21 @@ const Toast: React.FC<ToastProps> = ({
   duration = 3000,
   onClose,
 }) => {
+  const [isExiting, setIsExiting] = useState(false)
+
   useEffect(() => {
+    // Timer should only be set once on mount, not reset when onClose changes
     const timer = setTimeout(() => {
-      onClose()
+      setIsExiting(true)
+      // Wait for fade-out animation to complete before removing
+      setTimeout(() => {
+        onClose()
+      }, 300) // Match fadeOut animation duration
     }, duration)
     
     return () => clearTimeout(timer)
-  }, [duration, onClose])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [duration]) // Only depend on duration, not onClose
   
   // Color indicator styles - left border
   const borderColors = {
@@ -72,13 +80,20 @@ const Toast: React.FC<ToastProps> = ({
     ),
   }
   
+  const handleClose = () => {
+    setIsExiting(true)
+    setTimeout(() => {
+      onClose()
+    }, 300) // Match fadeOut animation duration
+  }
+
   return (
-    <div className={`bg-white border-l-4 ${borderColors[type]} px-6 py-4 rounded-lg shadow-lg flex items-center gap-3 min-w-[300px] animate-slide-in`}>
+    <div className={`bg-white border-l-4 ${borderColors[type]} px-6 py-4 rounded-lg shadow-lg flex items-center gap-3 min-w-[300px] transition-all duration-300 ${isExiting ? 'animate-fade-out' : 'animate-slide-in'}`}>
       <div className={iconColors[type]}>
         {icons[type]}
       </div>
       <p className={`flex-1 font-medium ${textColors[type]}`}>{message}</p>
-      <button onClick={onClose} className="hover:bg-gray-100 p-1 rounded transition-colors text-gray-400 hover:text-gray-600">
+      <button onClick={handleClose} className="hover:bg-gray-100 p-1 rounded transition-colors text-gray-400 hover:text-gray-600">
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
         </svg>
