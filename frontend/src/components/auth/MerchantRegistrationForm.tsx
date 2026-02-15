@@ -125,6 +125,9 @@ export default function MerchantRegistrationForm() {
     if (!step2Data.barangay.trim()) errors.barangay = 'Barangay is required';
     if (!step2Data.street_name.trim()) errors.street_name = 'Street name is required';
     if (!step2Data.house_number.trim()) errors.house_number = 'House number is required';
+    if (step2Data.latitude === null || step2Data.longitude === null) {
+      errors.location = 'You need to select your location first';
+    }
 
     setStep2Errors(errors);
     return Object.keys(errors).length === 0;
@@ -164,6 +167,10 @@ export default function MerchantRegistrationForm() {
 
   const handleStep2Submit = async () => {
     if (!validateStep2()) {
+      if (step2Data.latitude === null || step2Data.longitude === null) {
+        error('You need to select your location first');
+        return;
+      }
       error('Please complete all location fields');
       return;
     }
@@ -696,6 +703,10 @@ export default function MerchantRegistrationForm() {
                     <MapPin className="w-5 h-5" />
                     <span className="font-semibold">Pick from Map</span>
                   </button>
+
+                  {step2Errors.location && (
+                    <p className="mt-2 text-sm text-red-600">{step2Errors.location}</p>
+                  )}
                 </div>
               </div>
             </div>
@@ -715,16 +726,26 @@ export default function MerchantRegistrationForm() {
                     <FileUpload
                       label={doc.label}
                       required={doc.required}
-                      accept={doc.key.includes('id') || doc.key === 'selfie_with_id' ? 'image/*' : undefined}
+                      accept={doc.key === 'selfie_with_id' || doc.key === 'valid_id' ? 'image/*' : 'image/*,.pdf,application/pdf'}
                       cameraOnly={doc.key === 'selfie_with_id' || doc.key === 'valid_id'}
                       multiple={doc.key === 'other_documents'}
                       value={step3Data[doc.key as keyof typeof step3Data] as File | File[] | null}
                       onChange={(file) => {
-                        if (doc.key === 'other_documents' && file) {
-                          setStep3Data({ ...step3Data, other_documents: [...step3Data.other_documents, file] });
+                        if (doc.key === 'other_documents') {
+                          if (file) {
+                            setStep3Data({ ...step3Data, other_documents: [...step3Data.other_documents, file] });
+                          } else {
+                            setStep3Data({ ...step3Data, other_documents: [] });
+                          }
                         } else {
                           setStep3Data({ ...step3Data, [doc.key]: file });
                         }
+
+                        setStep3Errors((prev) => {
+                          const next = { ...prev };
+                          delete next[doc.key];
+                          return next;
+                        });
                       }}
                       error={step3Errors[doc.key]}
                     />
@@ -785,6 +806,11 @@ export default function MerchantRegistrationForm() {
         currentLongitude={step2Data.longitude}
         onLocationSelect={(lat, lng) => {
           setStep2Data({ ...step2Data, latitude: lat, longitude: lng });
+          setStep2Errors((prev) => {
+            const next = { ...prev };
+            delete next.location;
+            return next;
+          });
           info(`Location set: ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
         }}
       />
