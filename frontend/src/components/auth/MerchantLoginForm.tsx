@@ -435,6 +435,7 @@ export default function MerchantLoginForm() {
                 <Link
                   href="/merchant/forgot-password"
                   className="text-sm text-orange-600 hover:text-orange-700 font-medium"
+                  onClick={() => setIsNavigating(true)}
                 >
                   Forgot password?
                 </Link>
