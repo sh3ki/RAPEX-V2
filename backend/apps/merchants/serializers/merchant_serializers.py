@@ -4,8 +4,8 @@ from django.core.validators import RegexValidator
 
 
 class Step1Serializer(serializers.Serializer):
-    """Serializer for Step 1: General Info"""
-    
+    """Serializer for Step 1: General Info — field shape & format validation only (no DB queries)."""
+
     business_name = serializers.CharField(max_length=255, required=True)
     owner_name = serializers.CharField(max_length=255, required=True)
     username = serializers.CharField(max_length=150, required=True)
@@ -34,29 +34,14 @@ class Step1Serializer(serializers.Serializer):
         choices=Merchant.REGISTRATION_TYPES,
         required=True
     )
-    
-    def validate_username(self, value):
-        """Validate username uniqueness"""
-        if Merchant.objects.filter(username=value).exists():
-            raise serializers.ValidationError("Username already exists")
-        return value
-    
-    def validate_email(self, value):
-        """Validate email uniqueness"""
-        if Merchant.objects.filter(email=value).exists():
-            raise serializers.ValidationError("Email already exists")
-        return value
-    
-    def validate_phone_number(self, value):
-        """Validate phone number uniqueness"""
-        if Merchant.objects.filter(phone_number=value).exists():
-            raise serializers.ValidationError("Phone number already exists")
-        return value
+    # NOTE: Uniqueness checks (username, email, phone_number) are intentionally
+    # NOT done here — they belong in MerchantRegistrationService.register_merchant_atomic()
+    # inside a @transaction.atomic block, per the blueprint (no DB queries in serializers).
 
 
 class Step2Serializer(serializers.Serializer):
-    """Serializer for Step 2: Location"""
-    
+    """Serializer for Step 2: Location — field shape validation only."""
+
     zip_code = serializers.CharField(max_length=10, required=True)
     province = serializers.CharField(max_length=100, required=True)
     city = serializers.CharField(max_length=100, required=True)
@@ -78,60 +63,53 @@ class Step2Serializer(serializers.Serializer):
 
 
 class Step3Serializer(serializers.Serializer):
-    """Serializer for Step 3: Documents"""
-    
-    # Required for all
+    """
+    Serializer for Step 3: Documents.
+
+    Validates required documents against business_registration type passed
+    via context['business_registration'] — no DB access required.
+    """
+
+    # Required for all registration types
     selfie_with_id = serializers.FileField(required=True)
     valid_id = serializers.FileField(required=True)
-    
+
     # For registered businesses
     barangay_permit = serializers.FileField(required=False, allow_null=True)
     dti_sec_certificate = serializers.FileField(required=False, allow_null=True)
     bir_certificate = serializers.FileField(required=False, allow_null=True)
     mayors_permit = serializers.FileField(required=False, allow_null=True)
-    
+
     # Optional additional documents (handled via request.FILES.getlist in view)
     other_documents = serializers.FileField(required=False)
-    
+
     def validate(self, data):
-        """Validate documents based on business registration type"""
-        # Get merchant_id from context
-        merchant_id = self.context.get('merchant_id')
-        if not merchant_id:
-            raise serializers.ValidationError("Merchant ID is required")
-        
-        try:
-            merchant = Merchant.objects.get(id=merchant_id)
-        except Merchant.DoesNotExist:
-            raise serializers.ValidationError("Merchant not found")
-        
-        registration_type = merchant.business_registration
-        
-        # Validate based on registration type
+        """Validate required documents based on business_registration from context."""
+        registration_type = self.context.get('business_registration', Merchant.UNREGISTERED)
+
         if registration_type == Merchant.REGISTERED_NON_VAT:
             if not data.get('barangay_permit'):
                 raise serializers.ValidationError(
-                    {"barangay_permit": "Barangay permit is required for registered businesses"}
+                    {'barangay_permit': 'Barangay permit is required for registered businesses'}
                 )
             if not data.get('dti_sec_certificate'):
                 raise serializers.ValidationError(
-                    {"dti_sec_certificate": "DTI/SEC certificate is required for registered businesses"}
+                    {'dti_sec_certificate': 'DTI/SEC certificate is required for registered businesses'}
                 )
-        
+
         elif registration_type == Merchant.REGISTERED_VAT:
             required_docs = {
                 'barangay_permit': 'Barangay permit',
                 'dti_sec_certificate': 'DTI/SEC certificate',
                 'bir_certificate': 'BIR certificate',
-                'mayors_permit': "Mayor's permit"
+                'mayors_permit': "Mayor's permit",
             }
-            
             for field, label in required_docs.items():
                 if not data.get(field):
                     raise serializers.ValidationError(
-                        {field: f"{label} is required for VAT registered businesses"}
+                        {field: f'{label} is required for VAT registered businesses'}
                     )
-        
+
         return data
 
 
