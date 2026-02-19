@@ -16,12 +16,12 @@ const ROUTE_LABELS: Record<string, string> = {
   cancellations: 'Cancellations',
   returns: 'Return / Refunds',
   shop: 'My Shop',
-  products: 'Shop Products',
-  add: 'Add Product',
-  bulk: 'Bulk Products',
+  products: 'Products',
+  add: 'Add',
+  bulk: 'Bulk',
   'fresh-market': 'Fresh Market',
-  'food-menu': 'Food Menu',
-  'pre-loved': 'Pre-Loved Products',
+  'ready-to-eat': 'Ready-to-Eat Foods',
+  'pre-loved': 'Pre-Loved Shop',
   inventory: 'Inventory',
   performance: 'Performance',
   'sales-reports': 'Sales Reports',
@@ -38,6 +38,22 @@ const ROUTE_LABELS: Record<string, string> = {
   help: 'Help & Support',
 }
 
+// Path-specific overrides for context-aware sub-segment labels
+const PATH_LABEL_OVERRIDES: Record<string, string> = {
+  '/merchant/shop/products': 'Shop Products',
+  '/merchant/shop/add': 'Add Product',
+  '/merchant/shop/bulk': 'Bulk Products',
+  '/merchant/fresh-market/products': 'My Fresh Market',
+  '/merchant/fresh-market/add': 'Add Fresh Products',
+  '/merchant/fresh-market/bulk': 'Bulk Fresh Products',
+  '/merchant/ready-to-eat/products': 'My Food Products',
+  '/merchant/ready-to-eat/add': 'Add Food Products',
+  '/merchant/ready-to-eat/bulk': 'Bulk Food Products',
+  '/merchant/pre-loved/products': 'My Pre-Loved Products',
+  '/merchant/pre-loved/add': 'Add Pre-Loved Products',
+  '/merchant/pre-loved/bulk': 'Bulk Pre-Loved Products',
+}
+
 function buildBreadcrumbs(pathname: string) {
   const segments = pathname.split('/').filter(Boolean)
   const crumbs: { label: string; href: string }[] = []
@@ -45,7 +61,8 @@ function buildBreadcrumbs(pathname: string) {
 
   for (const seg of segments) {
     path += `/${seg}`
-    const label = ROUTE_LABELS[seg] || seg
+    // Check full-path override first for context-aware labels
+    const label = PATH_LABEL_OVERRIDES[path] ?? ROUTE_LABELS[seg] ?? seg
     crumbs.push({ label, href: path })
   }
 
