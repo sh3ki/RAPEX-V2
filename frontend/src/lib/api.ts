@@ -40,7 +40,11 @@ export default apiClient
 
 // Merchant Registration API functions
 export const merchantAPI = {
-  // Step 1: General Info
+  // Authentication
+  login: async (identifier: string, password: string) => {
+    const response = await apiClient.post('/merchants/login/', { identifier, password });
+    return response.data;
+  },
   submitStep1: async (data: any) => {
     const response = await apiClient.post('/merchants/register/step1/', data);
     return response.data;
