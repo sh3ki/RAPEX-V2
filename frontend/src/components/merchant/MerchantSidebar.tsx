@@ -82,17 +82,32 @@ const NAV_ITEMS: NavItem[] = [
   {
     label: 'Fresh Market',
     icon: <Leaf size={20} />,
-    href: '/merchant/fresh-market',
+    key: 'fresh-market',
+    children: [
+      { label: 'My Fresh Market', href: '/merchant/fresh-market/products', icon: <Package size={16} /> },
+      { label: 'Add Fresh Products', href: '/merchant/fresh-market/add', icon: <PlusCircle size={16} /> },
+      { label: 'Bulk Fresh Products', href: '/merchant/fresh-market/bulk', icon: <Layers size={16} /> },
+    ],
   },
   {
-    label: 'Food Menu',
+    label: 'Ready-to-Eat Foods',
     icon: <UtensilsCrossed size={20} />,
-    href: '/merchant/food-menu',
+    key: 'ready-to-eat',
+    children: [
+      { label: 'My Food Products', href: '/merchant/ready-to-eat/products', icon: <Package size={16} /> },
+      { label: 'Add Food Products', href: '/merchant/ready-to-eat/add', icon: <PlusCircle size={16} /> },
+      { label: 'Bulk Food Products', href: '/merchant/ready-to-eat/bulk', icon: <Layers size={16} /> },
+    ],
   },
   {
-    label: 'Pre-Loved Products',
+    label: 'Pre-Loved Shop',
     icon: <Tag size={20} />,
-    href: '/merchant/pre-loved',
+    key: 'pre-loved',
+    children: [
+      { label: 'My Pre-Loved Products', href: '/merchant/pre-loved/products', icon: <Package size={16} /> },
+      { label: 'Add Pre-Loved Products', href: '/merchant/pre-loved/add', icon: <PlusCircle size={16} /> },
+      { label: 'Bulk Pre-Loved Products', href: '/merchant/pre-loved/bulk', icon: <Layers size={16} /> },
+    ],
   },
   {
     label: 'Inventory',
