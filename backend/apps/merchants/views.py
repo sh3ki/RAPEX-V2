@@ -16,6 +16,7 @@ from apps.merchants.serializers.merchant_serializers import (
 )
 from apps.merchants.services.registration_service import MerchantRegistrationService
 from apps.merchants.services.email_service import EmailService
+from apps.merchants.services.password_reset_service import PasswordResetService
 
 
 def normalize_coordinate(value):
@@ -365,3 +366,156 @@ class CheckUniquenessView(APIView):
                 'success': False,
                 'message': str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# ---------------------------------------------------------------------------
+# Forgot Password Views
+# ---------------------------------------------------------------------------
+
+class ForgotPasswordSendOTPView(APIView):
+    """
+    Step 1 - Send a 6-digit OTP to the merchant's registered email.
+    POST /merchants/forgot-password/send-otp/
+    Body: { "email": "..." }
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        email = request.data.get('email', '').strip()
+        if not email:
+            return Response(
+                {'success': False, 'message': 'Email is required.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        otp = PasswordResetService.generate_and_store_otp(email)
+
+        if otp is None:
+            return Response(
+                {
+                    'success': False,
+                    'message': 'No active merchant account found with that email.'
+                },
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        try:
+            merchant = Merchant.objects.get(email__iexact=email, is_active=True)
+        except Merchant.DoesNotExist:
+            return Response(
+                {'success': False, 'message': 'Merchant not found.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        email_sent = EmailService.send_otp_email(
+            email=merchant.email,
+            business_name=merchant.business_name,
+            otp=otp
+        )
+
+        if not email_sent:
+            return Response(
+                {'success': False, 'message': 'Failed to send OTP email. Please try again.'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+        return Response(
+            {'success': True, 'message': 'OTP sent successfully. Please check your email.'},
+            status=status.HTTP_200_OK
+        )
+
+
+class ForgotPasswordVerifyOTPView(APIView):
+    """
+    Step 2 - Verify the 6-digit OTP.
+    POST /merchants/forgot-password/verify-otp/
+    Body: { "email": "...", "otp": "123456" }
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        email = request.data.get('email', '').strip()
+        otp = request.data.get('otp', '').strip()
+
+        if not email or not otp:
+            return Response(
+                {'success': False, 'message': 'Email and OTP are required.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        verified = PasswordResetService.verify_otp(email, otp)
+
+        if not verified:
+            return Response(
+                {'success': False, 'message': 'Invalid or expired OTP. Please try again.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        return Response(
+            {'success': True, 'message': 'OTP verified successfully.'},
+            status=status.HTTP_200_OK
+        )
+
+
+class ForgotPasswordResetView(APIView):
+    """
+    Step 3 - Reset the password after OTP verification.
+    POST /merchants/forgot-password/reset/
+    Body: { "email": "...", "new_password": "...", "confirm_password": "..." }
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        import re
+        email = request.data.get('email', '').strip()
+        new_password = request.data.get('new_password', '')
+        confirm_password = request.data.get('confirm_password', '')
+
+        if not email or not new_password or not confirm_password:
+            return Response(
+                {'success': False, 'message': 'Email, new password, and confirm password are required.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if new_password != confirm_password:
+            return Response(
+                {'success': False, 'message': 'Passwords do not match.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if len(new_password) < 8:
+            return Response(
+                {'success': False, 'message': 'Password must be at least 8 characters long.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        if not re.search(r'[A-Z]', new_password):
+            return Response(
+                {'success': False, 'message': 'Password must contain at least one uppercase letter.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        if not re.search(r'[a-z]', new_password):
+            return Response(
+                {'success': False, 'message': 'Password must contain at least one lowercase letter.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        if not re.search(r'\d', new_password):
+            return Response(
+                {'success': False, 'message': 'Password must contain at least one number.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        success = PasswordResetService.reset_password(email, new_password)
+
+        if not success:
+            return Response(
+                {
+                    'success': False,
+                    'message': 'Password reset failed. Your OTP session may have expired. Please start over.'
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        return Response(
+            {'success': True, 'message': 'Password has been reset successfully.'},
+            status=status.HTTP_200_OK
+        )
