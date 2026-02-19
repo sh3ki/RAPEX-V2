@@ -25,8 +25,11 @@ import { FaWallet, FaBoxOpen, FaMoneyBillWave } from 'react-icons/fa'
 import { Button, Input, LoadingOverlay, FeatureCard, Icon } from '@/components/ui'
 import ToastContainer from '@/components/ui/ToastContainer'
 import { useToast } from '@/hooks/useToast'
+import { merchantAPI } from '@/lib/api'
+import { useRouter } from 'next/navigation'
 
 export default function MerchantLoginForm() {
+  const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [rememberMe, setRememberMe] = useState(false)
@@ -37,28 +40,30 @@ export default function MerchantLoginForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
-    // Basic validation
+
     if (!email.trim()) {
       error('Please enter your email or username')
       return
     }
-    
+
     if (!password.trim()) {
       error('Please enter your password')
       return
     }
-    
+
     setIsLoading(true)
-    
+
     try {
-      // API call will be here
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 2000))
-      
-      // On success:
+      const data = await merchantAPI.login(email.trim(), password)
+
+      // Persist tokens
+      localStorage.setItem('access_token', data.access)
+      localStorage.setItem('refresh_token', data.refresh)
+      localStorage.setItem('merchant', JSON.stringify(data.merchant))
+
       success('Welcome back! Redirecting to dashboard...')
-      // Redirect logic here
+      setIsNavigating(true)
+      router.push('/merchant/dashboard')
     } catch (err: any) {
       error(err.response?.data?.message || 'Login failed. Please check your credentials and try again.')
     } finally {
