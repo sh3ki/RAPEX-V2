@@ -902,7 +902,7 @@ export default function MerchantForgotPasswordForm() {
 
       {/* Footer */}
       <div className="relative z-10 text-center mt-6">
-        <p className="text-white/80 text-sm">© 2025 Rapex. All rights reserved.</p>
+        <p className="text-white/80 text-sm">© 2026 Rapex. All rights reserved.</p>
       </div>
 
       {/* ── Confirmation Modal ── */}
