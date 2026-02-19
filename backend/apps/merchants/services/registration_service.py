@@ -165,19 +165,20 @@ class MerchantRegistrationService:
 
         return merchant.id
 
+    @staticmethod
+    def generate_password(length: int = 12) -> str:
         """
-        Generate a secure random password
-        
+        Generate a secure random password.
+
         Args:
             length: Length of the password (default 12)
-            
+
         Returns:
             Generated password string
         """
         characters = string.ascii_letters + string.digits + string.punctuation
-        password = ''.join(secrets.choice(characters) for _ in range(length))
-        return password
-    
+        return ''.join(secrets.choice(characters) for _ in range(length))
+
     @staticmethod
     def validate_step_data(step: int, data: Dict[str, Any]) -> tuple[bool, Optional[str]]:
         """
@@ -415,10 +416,10 @@ class MerchantRegistrationService:
     def get_registration_progress(merchant_id: int) -> Dict[str, Any]:
         """
         Get the current registration progress for a merchant
-        
+
         Args:
             merchant_id: Merchant ID
-            
+
         Returns:
             Dictionary with progress information
         """
@@ -433,3 +434,102 @@ class MerchantRegistrationService:
             }
         except Merchant.DoesNotExist:
             return None
+
+    # ------------------------------------------------------------------
+    # Atomic single-step full registration (Step 3 confirm button)
+    # ------------------------------------------------------------------
+
+    @classmethod
+    @transaction.atomic
+    def register_merchant_atomic(
+        cls,
+        step1_data: Dict[str, Any],
+        step2_data: Dict[str, Any],
+        documents: Dict[str, Any],
+    ) -> 'tuple[Merchant, str]':
+        """
+        Save ALL merchant data atomically in a single database transaction.
+
+        Nothing is written to the database unless every validation check passes
+        (uniqueness, required documents, etc.).  If anything fails, the entire
+        transaction is rolled back and no files are persisted.
+
+        Args:
+            step1_data: Validated data from Step1Serializer
+            step2_data: Validated data from Step2Serializer
+            documents:  Dict of InMemoryUploadedFile objects from request.FILES
+
+        Returns:
+            (merchant, plain_text_password) — merchant is fully activated
+
+        Raises:
+            ValidationError: if uniqueness checks fail or required documents missing
+        """
+        # ── 1. Uniqueness checks (inside atomic block for integrity) ──
+        if Merchant.objects.filter(username__iexact=step1_data['username']).exists():
+            raise ValidationError({'username': ['Username already exists.']})
+        if Merchant.objects.filter(email__iexact=step1_data['email']).exists():
+            raise ValidationError({'email': ['Email already exists.']})
+        if Merchant.objects.filter(phone_number=step1_data['phone_number']).exists():
+            raise ValidationError({'phone_number': ['Phone number already exists.']})
+
+        # ── 2. Document validation ────────────────────────────────────
+        if not cls._validate_documents(step1_data['business_registration'], documents):
+            raise ValidationError({'documents': ['Required documents are missing.']})
+
+        # ── 3. Create the merchant record (single DB write for basic info) ──
+        merchant = Merchant(
+            username=step1_data['username'],
+            email=step1_data['email'],
+            business_name=step1_data['business_name'],
+            owner_name=step1_data['owner_name'],
+            phone_number=step1_data['phone_number'],
+            business_categories=step1_data.get('business_categories', []),
+            business_types=step1_data.get('business_types', []),
+            business_registration=step1_data['business_registration'],
+            zip_code=step2_data['zip_code'],
+            province=step2_data['province'],
+            city=step2_data['city'],
+            barangay=step2_data['barangay'],
+            street_name=step2_data['street_name'],
+            house_number=step2_data['house_number'],
+            latitude=cls.normalize_coordinate(step2_data.get('latitude')),
+            longitude=cls.normalize_coordinate(step2_data.get('longitude')),
+            is_active=False,
+            registration_step=2,
+            temp_registration_data={},
+        )
+        merchant.save()  # Assigns merchant.id, needed for file upload paths
+
+        # ── 4. Attach documents (file paths use merchant.id) ─────────
+        merchant.selfie_with_id = documents.get('selfie_with_id')
+        merchant.valid_id = documents.get('valid_id')
+
+        reg_type = step1_data['business_registration']
+        if reg_type in (Merchant.REGISTERED_NON_VAT, Merchant.REGISTERED_VAT):
+            merchant.barangay_permit = documents.get('barangay_permit')
+            merchant.dti_sec_certificate = documents.get('dti_sec_certificate')
+
+        if reg_type == Merchant.REGISTERED_VAT:
+            merchant.bir_certificate = documents.get('bir_certificate')
+            merchant.mayors_permit = documents.get('mayors_permit')
+
+        # Handle optional other documents
+        other_docs: list[str] = []
+        for key, value in documents.items():
+            if key.startswith('other_document_') and value:
+                stored_path = cls._store_other_document(merchant.id, value)
+                other_docs.append(stored_path)
+        merchant.other_documents = other_docs
+
+        # ── 5. Generate password and activate account ─────────────────
+        password = cls.generate_password()
+        merchant.set_password(password)
+        merchant.is_active = True
+        merchant.is_new = True
+        merchant.registration_step = 3
+        merchant.status = Merchant.PENDING
+
+        merchant.save()  # Single save — commits everything including file fields
+
+        return merchant, password
