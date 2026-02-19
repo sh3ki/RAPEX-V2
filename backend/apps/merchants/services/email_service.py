@@ -199,6 +199,147 @@ This is an automated message. Please do not reply to this email.
             return False
     
     @staticmethod
+    def send_otp_email(email: str, business_name: str, otp: str) -> bool:
+        """
+        Send OTP email for password reset.
+
+        Args:
+            email: Merchant's email address
+            business_name: Business name (used for greeting)
+            otp: 6-digit OTP string
+
+        Returns:
+            True if sent successfully, False otherwise
+        """
+        subject = "RAPEX - Your Password Reset OTP"
+
+        message = f"""
+Dear {business_name},
+
+You have requested to reset your RAPEX merchant account password.
+
+Your One-Time Password (OTP) is:
+
+{otp}
+
+This OTP is valid for 10 minutes. Do not share it with anyone.
+
+If you did not request a password reset, please ignore this email. Your account remains secure.
+
+Best regards,
+RAPEX Team
+
+---
+This is an automated message. Please do not reply to this email.
+        """
+
+        html_message = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {{
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+        }}
+        .container {{
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }}
+        .header {{
+            background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+            border-radius: 10px 10px 0 0;
+        }}
+        .content {{
+            background: #f9f9f9;
+            padding: 30px;
+            border-radius: 0 0 10px 10px;
+        }}
+        .otp-box {{
+            background: white;
+            border: 2px dashed #f97316;
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            margin: 24px 0;
+        }}
+        .otp-code {{
+            font-size: 42px;
+            font-weight: bold;
+            letter-spacing: 12px;
+            color: #f97316;
+            font-family: 'Courier New', monospace;
+        }}
+        .warning {{
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }}
+        .footer {{
+            text-align: center;
+            color: #666;
+            font-size: 12px;
+            margin-top: 30px;
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔐 Password Reset OTP</h1>
+        </div>
+        <div class="content">
+            <p>Dear <strong>{business_name}</strong>,</p>
+            <p>You have requested to reset your <strong>RAPEX</strong> merchant account password.</p>
+            <p>Use the OTP below to verify your identity:</p>
+
+            <div class="otp-box">
+                <p style="margin: 0 0 8px; color: #555; font-size: 14px;">Your One-Time Password</p>
+                <div class="otp-code">{otp}</div>
+                <p style="margin: 8px 0 0; color: #888; font-size: 13px;">Valid for <strong>10 minutes</strong></p>
+            </div>
+
+            <div class="warning">
+                <strong>⚠️ SECURITY NOTICE:</strong><br>
+                Never share this OTP with anyone. RAPEX staff will never ask for your OTP.
+                If you did not request this, please ignore this email.
+            </div>
+
+            <p>Best regards,<br><strong>RAPEX Team</strong></p>
+        </div>
+        <div class="footer">
+            <p>This is an automated message. Please do not reply to this email.</p>
+            <p>&copy; 2026 RAPEX. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>
+        """
+
+        try:
+            send_mail(
+                subject=subject,
+                message=message,
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[email],
+                html_message=html_message,
+                fail_silently=False,
+            )
+            logger.info(f"OTP email sent successfully to {email}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to send OTP email to {email}: {str(e)}")
+            return False
+
+    @staticmethod
     def send_verification_status_email(
         email: str,
         business_name: str,
