@@ -30,7 +30,7 @@ import { useRouter } from 'next/navigation'
 
 export default function MerchantLoginForm() {
   const router = useRouter()
-  const [email, setEmail] = useState('')
+  const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
   const [rememberMe, setRememberMe] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
@@ -41,8 +41,8 @@ export default function MerchantLoginForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!email.trim()) {
-      error('Please enter your email or username')
+    if (!identifier.trim()) {
+      error('Please enter your username or email')
       return
     }
 
@@ -54,12 +54,12 @@ export default function MerchantLoginForm() {
     setIsLoading(true)
 
     try {
-      const data = await merchantAPI.login(email.trim(), password)
+      const data = await merchantAPI.login(identifier.trim(), password)
 
       // Persist tokens
       localStorage.setItem('access_token', data.access)
       localStorage.setItem('refresh_token', data.refresh)
-      localStorage.setItem('merchant', JSON.stringify(data.merchant))
+      localStorage.setItem('user', JSON.stringify(data.merchant))
 
       success('Welcome back! Redirecting to dashboard...')
       setIsNavigating(true)
@@ -385,10 +385,11 @@ export default function MerchantLoginForm() {
                     <User className="w-5 h-5" />
                   </div>
                   <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    type="text"
+                    value={identifier}
+                    onChange={(e) => setIdentifier(e.target.value)}
                     placeholder="Enter your username or email"
+                    autoComplete="username"
                     required
                     className="w-full pl-12 pr-4 py-3 text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
                   />
@@ -538,7 +539,7 @@ export default function MerchantLoginForm() {
 
       {/* Footer outside container - At bottom of screen */}
       <div className="relative z-10 text-center mt-6">
-        <p className="text-white/80 text-sm">© 2025 Rapex. All rights reserved.</p>
+        <p className="text-white/80 text-sm">© 2026 Rapex. All rights reserved.</p>
       </div>
     </div>
   )
