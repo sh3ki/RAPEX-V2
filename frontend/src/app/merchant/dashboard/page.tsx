@@ -1,5 +1,5 @@
-import DashboardPage from '@/components/DashboardPage'
+import MerchantDashboardPage from '@/components/merchant/pages/MerchantDashboardPage'
 
 export default function MerchantDashboard() {
-  return <DashboardPage role="merchant" />
+  return <MerchantDashboardPage />
 }
