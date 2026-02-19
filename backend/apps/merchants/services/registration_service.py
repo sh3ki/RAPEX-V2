@@ -1,7 +1,8 @@
+import json
 import secrets
 import string
 from typing import Dict, Any, Optional
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from django.db import transaction
 from django.core.exceptions import ValidationError
 from django.utils import timezone
@@ -16,9 +17,154 @@ class MerchantRegistrationService:
     Service class for handling merchant registration logic
     Implements OOP principles with clean separation of concerns
     """
-    
+
+    # ------------------------------------------------------------------
+    # Coordinate utilities
+    # ------------------------------------------------------------------
+
     @staticmethod
-    def generate_password(length: int = 12) -> str:
+    def normalize_coordinate(value: Any) -> Any:
+        """Normalize a latitude/longitude value to 6 decimal places."""
+        if value in (None, ''):
+            return value
+        try:
+            normalized = Decimal(str(value)).quantize(
+                Decimal('0.000001'), rounding=ROUND_HALF_UP
+            )
+            return str(normalized)
+        except (InvalidOperation, ValueError, TypeError):
+            return value
+
+    # ------------------------------------------------------------------
+    # Uniqueness checks (DB access belongs in the service)
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def check_field_uniqueness(field: str, value: str) -> bool:
+        """
+        Return True if a merchant already exists with this value for the field.
+        Supported fields: username, email, phone_number.
+        """
+        if field == 'username':
+            return Merchant.objects.filter(username=value).exists()
+        if field == 'email':
+            return Merchant.objects.filter(email=value).exists()
+        if field == 'phone_number':
+            return Merchant.objects.filter(phone_number=value).exists()
+        raise ValueError(f"Unsupported uniqueness field: {field}")
+
+    # ------------------------------------------------------------------
+    # Authentication
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def authenticate_merchant(cls, identifier: str, password: str) -> 'Merchant':
+        """
+        Authenticate a merchant by email or username + password.
+        Returns the Merchant on success.
+        Raises ValueError with a descriptive message on failure.
+        """
+        identifier = identifier.strip()
+        try:
+            if '@' in identifier:
+                merchant = Merchant.objects.get(email__iexact=identifier)
+            else:
+                merchant = Merchant.objects.get(username__iexact=identifier)
+        except Merchant.DoesNotExist:
+            raise ValueError('No merchant account found with those credentials.')
+
+        if not merchant.is_active:
+            raise ValueError('Your account is not yet active. Please complete registration or contact support.')
+
+        if not merchant.check_password(password):
+            raise ValueError('Incorrect password. Please try again.')
+
+        return merchant
+
+    # ------------------------------------------------------------------
+    # Single-payload step resolver (used by Step3 when no merchant_id provided)
+    # ------------------------------------------------------------------
+
+    @classmethod
+    @transaction.atomic
+    def resolve_merchant_from_single_payload(
+        cls,
+        data: Dict[str, Any],
+        files: Dict[str, Any],
+        step1_serializer_class: Any,
+        step2_serializer_class: Any,
+    ) -> int:
+        """
+        When the frontend submits all three steps in one payload (no merchant_id),
+        parse and save steps 1 and 2 from the raw payload and return the merchant_id.
+
+        Args:
+            data: request.data dict
+            files: request.FILES dict
+            step1_serializer_class: Step1Serializer class (injected to avoid import)
+            step2_serializer_class: Step2Serializer class (injected to avoid import)
+
+        Returns:
+            merchant_id (int)
+
+        Raises:
+            ValidationError with serializer errors on invalid data.
+        """
+        # Parse JSON array fields
+        raw_categories = data.get('business_categories', '[]')
+        raw_types = data.get('business_types', '[]')
+
+        business_categories = (
+            json.loads(raw_categories) if isinstance(raw_categories, str) else raw_categories
+        )
+        business_types = (
+            json.loads(raw_types) if isinstance(raw_types, str) else raw_types
+        )
+
+        step1_payload = {
+            'business_name': data.get('business_name'),
+            'owner_name': data.get('owner_name'),
+            'username': data.get('username'),
+            'phone_number': data.get('phone_number'),
+            'email': data.get('email'),
+            'business_categories': business_categories,
+            'business_types': business_types,
+            'business_registration': data.get('business_registration'),
+        }
+
+        step1_serializer = step1_serializer_class(data=step1_payload)
+        if not step1_serializer.is_valid():
+            raise ValidationError(step1_serializer.errors)
+
+        merchant = cls.save_step_data(
+            merchant_id=None,
+            step=1,
+            data=step1_serializer.validated_data,
+        )
+
+        step2_payload = {
+            'zip_code': data.get('zip_code'),
+            'province': data.get('province'),
+            'city': data.get('city'),
+            'barangay': data.get('barangay'),
+            'street_name': data.get('street_name'),
+            'house_number': data.get('house_number'),
+            'latitude': cls.normalize_coordinate(data.get('latitude')),
+            'longitude': cls.normalize_coordinate(data.get('longitude')),
+        }
+
+        step2_serializer = step2_serializer_class(data=step2_payload)
+        if not step2_serializer.is_valid():
+            raise ValidationError(step2_serializer.errors)
+
+        merchant = cls.save_step_data(
+            merchant_id=merchant.id,
+            step=2,
+            data=step2_serializer.validated_data,
+        )
+
+        return merchant.id
+
         """
         Generate a secure random password
         
