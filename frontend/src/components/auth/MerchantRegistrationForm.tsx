@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, ArrowRight, Store, MapPin, Plus, Trash2, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Store, MapPin, Plus, Trash2, AlertTriangle, Loader2 } from 'lucide-react';
 import { 
   HiShoppingCart, 
   HiCreditCard, 
@@ -72,6 +72,7 @@ export default function MerchantRegistrationForm() {
   });
 
   const [step1Errors, setStep1Errors] = useState<Record<string, string>>({});
+  const [uniquenessChecking, setUniquenessChecking] = useState<Record<string, boolean>>({});
 
   // Step 2: Location
   const [step2Data, setStep2Data] = useState({
@@ -101,17 +102,49 @@ export default function MerchantRegistrationForm() {
 
   const [step3Errors, setStep3Errors] = useState<Record<string, string>>({});
 
+  const checkUniqueness = async (field: string, value: string) => {
+    if (!value.trim()) return;
+    setUniquenessChecking(prev => ({ ...prev, [field]: true }));
+    try {
+      const result = await merchantAPI.checkUniqueness(field, value);
+      if (result.exists) {
+        setStep1Errors(prev => ({ ...prev, [field]: result.message }));
+      } else {
+        setStep1Errors(prev => {
+          const next = { ...prev };
+          delete next[field];
+          return next;
+        });
+      }
+    } catch {
+      // silently ignore — the atomic save will catch duplicates
+    } finally {
+      setUniquenessChecking(prev => ({ ...prev, [field]: false }));
+    }
+  };
+
   const validateStep1 = () => {
     const errors: Record<string, string> = {};
 
     if (!step1Data.business_name.trim()) errors.business_name = 'Business name is required';
     if (!step1Data.owner_name.trim()) errors.owner_name = 'Owner name is required';
-    if (!step1Data.username.trim()) errors.username = 'Username is required';
+    if (!step1Data.username.trim()) {
+      errors.username = 'Username is required';
+    } else if (step1Errors.username) {
+      errors.username = step1Errors.username;
+    }
     if (step1Data.phone_number === '+63' || step1Data.phone_number.replace(/\s/g, '').length < 13) {
       errors.phone_number = 'Valid phone number is required';
+    } else if (step1Errors.phone_number) {
+      errors.phone_number = step1Errors.phone_number;
     }
-    if (!step1Data.email.trim()) errors.email = 'Email is required';
-    if (!/\S+@\S+\.\S+/.test(step1Data.email)) errors.email = 'Valid email is required';
+    if (!step1Data.email.trim()) {
+      errors.email = 'Email is required';
+    } else if (!/\S+@\S+\.\S+/.test(step1Data.email)) {
+      errors.email = 'Valid email is required';
+    } else if (step1Errors.email) {
+      errors.email = step1Errors.email;
+    }
     if (step1Data.business_categories.length === 0) errors.business_categories = 'At least one business category is required';
     if (step1Data.business_types.length === 0) errors.business_types = 'At least one business type is required';
     if (!step1Data.business_registration) errors.business_registration = 'Business registration type is required';
@@ -629,15 +662,29 @@ export default function MerchantRegistrationForm() {
                 <Input
                   label="Username"
                   value={step1Data.username}
-                  onChange={(e) => setStep1Data({ ...step1Data, username: e.target.value })}
+                  onChange={(e) => {
+                    setStep1Data({ ...step1Data, username: e.target.value });
+                    if (step1Errors.username) setStep1Errors(prev => { const next = { ...prev }; delete next.username; return next; });
+                  }}
+                  onBlur={() => { if (step1Data.username.trim()) checkUniqueness('username', step1Data.username.trim()); }}
                   error={step1Errors.username}
+                  rightIcon={uniquenessChecking.username ? <Loader2 size={16} className="animate-spin text-gray-400" /> : undefined}
                   required
                 />
 
                 <PhoneInput
                   label="Phone Number"
                   value={step1Data.phone_number}
-                  onChange={(value) => setStep1Data({ ...step1Data, phone_number: value })}
+                  onChange={(value) => {
+                    setStep1Data({ ...step1Data, phone_number: value });
+                    if (step1Errors.phone_number) setStep1Errors(prev => { const next = { ...prev }; delete next.phone_number; return next; });
+                  }}
+                  onBlur={() => {
+                    const phone = step1Data.phone_number;
+                    if (phone !== '+63' && phone.replace(/\s/g, '').length >= 13) {
+                      checkUniqueness('phone_number', phone);
+                    }
+                  }}
                   error={step1Errors.phone_number}
                   required
                 />
@@ -647,8 +694,17 @@ export default function MerchantRegistrationForm() {
                     label="Email Address"
                     type="email"
                     value={step1Data.email}
-                    onChange={(e) => setStep1Data({ ...step1Data, email: e.target.value })}
+                    onChange={(e) => {
+                      setStep1Data({ ...step1Data, email: e.target.value });
+                      if (step1Errors.email) setStep1Errors(prev => { const next = { ...prev }; delete next.email; return next; });
+                    }}
+                    onBlur={() => {
+                      if (step1Data.email.trim() && /\S+@\S+\.\S+/.test(step1Data.email)) {
+                        checkUniqueness('email', step1Data.email.trim());
+                      }
+                    }}
                     error={step1Errors.email}
+                    rightIcon={uniquenessChecking.email ? <Loader2 size={16} className="animate-spin text-gray-400" /> : undefined}
                     required
                   />
                 </div>
