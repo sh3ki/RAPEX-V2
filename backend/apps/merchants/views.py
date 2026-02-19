@@ -3,9 +3,8 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.permissions import AllowAny
-from django.db import transaction
-import json
-from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+from rest_framework_simplejwt.tokens import RefreshToken
+from django.core.exceptions import ValidationError
 from apps.merchants.models import Merchant
 from apps.merchants.serializers.merchant_serializers import (
     Step1Serializer,
@@ -17,19 +16,6 @@ from apps.merchants.serializers.merchant_serializers import (
 from apps.merchants.services.registration_service import MerchantRegistrationService
 from apps.merchants.services.email_service import EmailService
 from apps.merchants.services.password_reset_service import PasswordResetService
-
-
-def normalize_coordinate(value):
-    """Normalize coordinate values to 6 decimal places for serializer compatibility."""
-    if value in (None, ''):
-        return value
-
-    try:
-        decimal_value = Decimal(str(value))
-        normalized = decimal_value.quantize(Decimal('0.000001'), rounding=ROUND_HALF_UP)
-        return str(normalized)
-    except (InvalidOperation, ValueError, TypeError):
-        return value
 
 
 class RegistrationStep1View(APIView):
@@ -106,13 +92,15 @@ class RegistrationStep2View(APIView):
                     'message': 'Merchant ID is required'
                 }, status=status.HTTP_400_BAD_REQUEST)
             
-            # Save step data
-            latitude = normalize_coordinate(serializer.validated_data.get('latitude'))
-            longitude = normalize_coordinate(serializer.validated_data.get('longitude'))
+            # Save step data — coordinate normalization handled by the service
             step2_data = {
                 **serializer.validated_data,
-                'latitude': latitude,
-                'longitude': longitude,
+                'latitude': MerchantRegistrationService.normalize_coordinate(
+                    serializer.validated_data.get('latitude')
+                ),
+                'longitude': MerchantRegistrationService.normalize_coordinate(
+                    serializer.validated_data.get('longitude')
+                ),
             }
 
             merchant = MerchantRegistrationService.save_step_data(
@@ -157,86 +145,31 @@ class RegistrationStep3View(APIView):
         merchant_id = request.data.get('merchant_id')
 
         try:
-            with transaction.atomic():
-                if not merchant_id:
-                    raw_categories = request.data.get('business_categories', '[]')
-                    raw_types = request.data.get('business_types', '[]')
-
-                    if isinstance(raw_categories, str):
-                        try:
-                            business_categories = json.loads(raw_categories)
-                        except json.JSONDecodeError:
-                            business_categories = []
-                    else:
-                        business_categories = raw_categories
-
-                    if isinstance(raw_types, str):
-                        try:
-                            business_types = json.loads(raw_types)
-                        except json.JSONDecodeError:
-                            business_types = []
-                    else:
-                        business_types = raw_types
-
-                    step1_payload = {
-                        'business_name': request.data.get('business_name'),
-                        'owner_name': request.data.get('owner_name'),
-                        'username': request.data.get('username'),
-                        'phone_number': request.data.get('phone_number'),
-                        'email': request.data.get('email'),
-                        'business_categories': business_categories,
-                        'business_types': business_types,
-                        'business_registration': request.data.get('business_registration'),
-                    }
-
-                    step1_serializer = Step1Serializer(data=step1_payload)
-                    if not step1_serializer.is_valid():
-                        return Response({
-                            'success': False,
-                            'errors': step1_serializer.errors
-                        }, status=status.HTTP_400_BAD_REQUEST)
-
-                    merchant = MerchantRegistrationService.save_step_data(
-                        merchant_id=None,
-                        step=1,
-                        data=step1_serializer.validated_data
+            # If all steps arrive in one payload, delegate step 1+2 parsing to the service
+            if not merchant_id:
+                try:
+                    merchant_id = MerchantRegistrationService.resolve_merchant_from_single_payload(
+                        data=request.data,
+                        files=request.FILES,
+                        step1_serializer_class=Step1Serializer,
+                        step2_serializer_class=Step2Serializer,
                     )
-
-                    step2_payload = {
-                        'zip_code': request.data.get('zip_code'),
-                        'province': request.data.get('province'),
-                        'city': request.data.get('city'),
-                        'barangay': request.data.get('barangay'),
-                        'street_name': request.data.get('street_name'),
-                        'house_number': request.data.get('house_number'),
-                        'latitude': normalize_coordinate(request.data.get('latitude')),
-                        'longitude': normalize_coordinate(request.data.get('longitude')),
-                    }
-
-                    step2_serializer = Step2Serializer(data=step2_payload)
-                    if not step2_serializer.is_valid():
-                        return Response({
-                            'success': False,
-                            'errors': step2_serializer.errors
-                        }, status=status.HTTP_400_BAD_REQUEST)
-
-                    merchant = MerchantRegistrationService.save_step_data(
-                        merchant_id=merchant.id,
-                        step=2,
-                        data=step2_serializer.validated_data
-                    )
-                    merchant_id = merchant.id
-
-                serializer = Step3Serializer(
-                    data=request.data,
-                    context={'merchant_id': merchant_id}
-                )
-
-                if not serializer.is_valid():
+                except ValidationError as ve:
                     return Response({
                         'success': False,
-                        'errors': serializer.errors
+                        'errors': ve.message_dict if hasattr(ve, 'message_dict') else ve.messages
                     }, status=status.HTTP_400_BAD_REQUEST)
+
+            serializer = Step3Serializer(
+                data=request.data,
+                context={'merchant_id': merchant_id}
+            )
+
+            if not serializer.is_valid():
+                return Response({
+                    'success': False,
+                    'errors': serializer.errors
+                }, status=status.HTTP_400_BAD_REQUEST)
 
             # Prepare documents dictionary
             documents = {
@@ -292,6 +225,48 @@ class RegistrationStep3View(APIView):
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+class MerchantLoginView(APIView):
+    """
+    Authenticate a merchant and return JWT access + refresh tokens.
+    POST /merchants/login/
+    Body: { "identifier": "email or username", "password": "..." }
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        identifier = request.data.get('identifier', '').strip()
+        password = request.data.get('password', '')
+
+        if not identifier or not password:
+            return Response(
+                {'success': False, 'message': 'Identifier (email/username) and password are required.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            merchant = MerchantRegistrationService.authenticate_merchant(identifier, password)
+        except ValueError as exc:
+            return Response(
+                {'success': False, 'message': str(exc)},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+
+        refresh = RefreshToken.for_user(merchant)
+        return Response({
+            'success': True,
+            'message': 'Login successful.',
+            'access': str(refresh.access_token),
+            'refresh': str(refresh),
+            'merchant': {
+                'id': merchant.id,
+                'email': merchant.email,
+                'username': merchant.username,
+                'business_name': merchant.business_name,
+                'status': merchant.status,
+            }
+        }, status=status.HTTP_200_OK)
+
+
 class RegistrationProgressView(APIView):
     """
     API endpoint to get registration progress
@@ -343,24 +318,19 @@ class CheckUniquenessView(APIView):
             }, status=status.HTTP_400_BAD_REQUEST)
         
         try:
-            if field == 'username':
-                exists = Merchant.objects.filter(username=value).exists()
-            elif field == 'email':
-                exists = Merchant.objects.filter(email=value).exists()
-            elif field == 'phone_number':
-                exists = Merchant.objects.filter(phone_number=value).exists()
-            else:
-                return Response({
-                    'success': False,
-                    'message': 'Invalid field'
-                }, status=status.HTTP_400_BAD_REQUEST)
-            
+            exists = MerchantRegistrationService.check_field_uniqueness(field, value)
             return Response({
                 'success': True,
                 'exists': exists,
                 'message': f'{field.capitalize()} already exists' if exists else f'{field.capitalize()} is available'
             }, status=status.HTTP_200_OK)
-        
+
+        except ValueError:
+            return Response({
+                'success': False,
+                'message': 'Invalid field'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
         except Exception as e:
             return Response({
                 'success': False,
@@ -388,7 +358,7 @@ class ForgotPasswordSendOTPView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        otp = PasswordResetService.generate_and_store_otp(email)
+        otp, merchant = PasswordResetService.generate_and_store_otp(email)
 
         if otp is None:
             return Response(
@@ -396,14 +366,6 @@ class ForgotPasswordSendOTPView(APIView):
                     'success': False,
                     'message': 'No active merchant account found with that email.'
                 },
-                status=status.HTTP_404_NOT_FOUND
-            )
-
-        try:
-            merchant = Merchant.objects.get(email__iexact=email, is_active=True)
-        except Merchant.DoesNotExist:
-            return Response(
-                {'success': False, 'message': 'Merchant not found.'},
                 status=status.HTTP_404_NOT_FOUND
             )
 
@@ -466,41 +428,20 @@ class ForgotPasswordResetView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        import re
         email = request.data.get('email', '').strip()
         new_password = request.data.get('new_password', '')
         confirm_password = request.data.get('confirm_password', '')
 
-        if not email or not new_password or not confirm_password:
+        if not email:
             return Response(
-                {'success': False, 'message': 'Email, new password, and confirm password are required.'},
+                {'success': False, 'message': 'Email is required.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        if new_password != confirm_password:
+        validation_error = PasswordResetService.validate_password(new_password, confirm_password)
+        if validation_error:
             return Response(
-                {'success': False, 'message': 'Passwords do not match.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        if len(new_password) < 8:
-            return Response(
-                {'success': False, 'message': 'Password must be at least 8 characters long.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        if not re.search(r'[A-Z]', new_password):
-            return Response(
-                {'success': False, 'message': 'Password must contain at least one uppercase letter.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        if not re.search(r'[a-z]', new_password):
-            return Response(
-                {'success': False, 'message': 'Password must contain at least one lowercase letter.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        if not re.search(r'\d', new_password):
-            return Response(
-                {'success': False, 'message': 'Password must contain at least one number.'},
+                {'success': False, 'message': validation_error},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
