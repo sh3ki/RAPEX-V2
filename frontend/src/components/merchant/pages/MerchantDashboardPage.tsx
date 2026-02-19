@@ -1,9 +1,8 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useLayoutEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import MerchantLayout from '@/components/merchant/MerchantLayout'
-import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import {
   ShoppingBag,
   TrendingUp,
@@ -43,7 +42,10 @@ const MerchantDashboardPage: React.FC = () => {
   const [ready, setReady] = useState(false)
   const [user, setUser] = useState<any>(null)
 
-  useEffect(() => {
+  // useLayoutEffect: runs synchronously before browser paint.
+  // localStorage is instant so ready=true is set before anything is drawn —
+  // no spinner flash on navigation.
+  useLayoutEffect(() => {
     const token = localStorage.getItem('access_token')
     const stored = localStorage.getItem('user')
 
@@ -64,13 +66,7 @@ const MerchantDashboardPage: React.FC = () => {
     setReady(true)
   }, [router])
 
-  if (!ready) {
-    return (
-      <div className="fixed inset-0 bg-gray-100 flex items-center justify-center z-50">
-        <LoadingSpinner size="lg" />
-      </div>
-    )
-  }
+  if (!ready) return null
 
   return (
     <MerchantLayout>
