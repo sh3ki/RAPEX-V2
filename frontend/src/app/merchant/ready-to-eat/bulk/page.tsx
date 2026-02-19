@@ -1,3 +1,5 @@
+'use client'
+
 import MerchantPageShell from '@/components/merchant/MerchantPageShell'
 import { Layers } from 'lucide-react'
 
