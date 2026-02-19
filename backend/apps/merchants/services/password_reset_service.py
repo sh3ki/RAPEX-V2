@@ -1,3 +1,4 @@
+import re
 import random
 import string
 import logging
@@ -8,6 +9,8 @@ logger = logging.getLogger(__name__)
 
 OTP_EXPIRY_SECONDS = 600  # 10 minutes
 OTP_VERIFIED_EXPIRY_SECONDS = 600  # 10 minutes to reset after verification
+
+PASSWORD_MIN_LENGTH = 8
 
 
 class PasswordResetService:
@@ -29,23 +32,30 @@ class PasswordResetService:
     # ---------- public API ----------
 
     @classmethod
-    def generate_and_store_otp(cls, email: str) -> str | None:
+    def get_active_merchant(cls, email: str) -> 'Merchant | None':
+        """Return the active Merchant for this email, or None."""
+        try:
+            return Merchant.objects.get(email__iexact=email, is_active=True)
+        except Merchant.DoesNotExist:
+            return None
+
+    @classmethod
+    def generate_and_store_otp(cls, email: str) -> 'tuple[str, Merchant] | tuple[None, None]':
         """
         Generate a 6-digit OTP and save it to cache.
-        Returns the OTP string, or None if the merchant email does not exist.
+        Returns (otp, merchant) on success, or (None, None) if email is unknown.
         """
-        try:
-            merchant = Merchant.objects.get(email__iexact=email, is_active=True)
-        except Merchant.DoesNotExist:
+        merchant = cls.get_active_merchant(email)
+        if merchant is None:
             logger.warning(f"Password reset attempted for unknown email: {email}")
-            return None
+            return None, None
 
         otp = "".join(random.choices(string.digits, k=6))
         cache.set(cls._otp_cache_key(email.lower()), otp, timeout=OTP_EXPIRY_SECONDS)
         # Clear any previous verified flag
         cache.delete(cls._verified_cache_key(email.lower()))
         logger.info(f"OTP generated for merchant: {email}")
-        return otp
+        return otp, merchant
 
     @classmethod
     def verify_otp(cls, email: str, otp: str) -> bool:
@@ -68,6 +78,26 @@ class PasswordResetService:
         """Check whether this email has a valid verified OTP session."""
         return bool(cache.get(cls._verified_cache_key(email.lower())))
 
+    @staticmethod
+    def validate_password(password: str, confirm_password: str) -> 'str | None':
+        """
+        Validate password strength and confirmation.
+        Returns an error message string on failure, or None on success.
+        """
+        if not password or not confirm_password:
+            return 'New password and confirm password are required.'
+        if password != confirm_password:
+            return 'Passwords do not match.'
+        if len(password) < PASSWORD_MIN_LENGTH:
+            return f'Password must be at least {PASSWORD_MIN_LENGTH} characters long.'
+        if not re.search(r'[A-Z]', password):
+            return 'Password must contain at least one uppercase letter.'
+        if not re.search(r'[a-z]', password):
+            return 'Password must contain at least one lowercase letter.'
+        if not re.search(r'\d', password):
+            return 'Password must contain at least one number.'
+        return None
+
     @classmethod
     def reset_password(cls, email: str, new_password: str) -> bool:
         """
@@ -78,13 +108,13 @@ class PasswordResetService:
             logger.warning(f"Password reset attempted without OTP verification for: {email}")
             return False
 
-        try:
-            merchant = Merchant.objects.get(email__iexact=email, is_active=True)
-            merchant.set_password(new_password)
-            merchant.save(update_fields=["password"])
-            cache.delete(cls._verified_cache_key(email.lower()))
-            logger.info(f"Password reset successfully for merchant: {email}")
-            return True
-        except Merchant.DoesNotExist:
+        merchant = cls.get_active_merchant(email)
+        if merchant is None:
             logger.error(f"Merchant not found during password reset: {email}")
             return False
+
+        merchant.set_password(new_password)
+        merchant.save(update_fields=["password"])
+        cache.delete(cls._verified_cache_key(email.lower()))
+        logger.info(f"Password reset successfully for merchant: {email}")
+        return True
