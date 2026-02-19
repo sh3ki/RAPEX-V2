@@ -5,6 +5,7 @@ from apps.merchants.views import (
     RegistrationStep3View,
     RegistrationProgressView,
     CheckUniquenessView,
+    MerchantLoginView,
     ForgotPasswordSendOTPView,
     ForgotPasswordVerifyOTPView,
     ForgotPasswordResetView,
@@ -13,6 +14,9 @@ from apps.merchants.views import (
 app_name = 'merchants'
 
 urlpatterns = [
+    # Authentication
+    path('login/', MerchantLoginView.as_view(), name='merchant-login'),
+
     # Registration endpoints
     path('register/step1/', RegistrationStep1View.as_view(), name='register-step1'),
     path('register/step2/', RegistrationStep2View.as_view(), name='register-step2'),
