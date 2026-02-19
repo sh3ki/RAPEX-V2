@@ -1,3 +1,4 @@
+import json
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -134,95 +135,98 @@ class RegistrationStep2View(APIView):
 
 class RegistrationStep3View(APIView):
     """
-    API endpoint for Step 3: Documents
-    Handles document uploads and completes registration
+    Complete merchant registration atomically.
+    All three steps' data arrives in one multipart payload.
+    Nothing is written to the database unless all validation passes.
+    POST /merchants/register/step3/
     """
-    permission_classes = [AllowAny]  # Allow public access
+    permission_classes = [AllowAny]
     parser_classes = [MultiPartParser, FormParser]
-    
+
     def post(self, request):
-        """Save Step 3 data and complete registration"""
-        merchant_id = request.data.get('merchant_id')
+        # ── Parse step 1 fields from multipart payload ──
+        raw_categories = request.data.get('business_categories', '[]')
+        raw_types = request.data.get('business_types', '[]')
+        step1_payload = {
+            'business_name': request.data.get('business_name'),
+            'owner_name': request.data.get('owner_name'),
+            'username': request.data.get('username'),
+            'phone_number': request.data.get('phone_number'),
+            'email': request.data.get('email'),
+            'business_categories': json.loads(raw_categories) if isinstance(raw_categories, str) else raw_categories,
+            'business_types': json.loads(raw_types) if isinstance(raw_types, str) else raw_types,
+            'business_registration': request.data.get('business_registration'),
+        }
+        step1_serializer = Step1Serializer(data=step1_payload)
+        if not step1_serializer.is_valid():
+            return Response({'success': False, 'errors': step1_serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 
+        # ── Parse step 2 fields ──
+        step2_payload = {
+            'zip_code': request.data.get('zip_code'),
+            'province': request.data.get('province'),
+            'city': request.data.get('city'),
+            'barangay': request.data.get('barangay'),
+            'street_name': request.data.get('street_name'),
+            'house_number': request.data.get('house_number'),
+            'latitude': request.data.get('latitude'),
+            'longitude': request.data.get('longitude'),
+        }
+        step2_serializer = Step2Serializer(data=step2_payload)
+        if not step2_serializer.is_valid():
+            return Response({'success': False, 'errors': step2_serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+
+        # ── Validate documents (no DB lookup — uses business_registration from step1) ──
+        step3_serializer = Step3Serializer(
+            data=request.data,
+            context={'business_registration': step1_serializer.validated_data['business_registration']}
+        )
+        if not step3_serializer.is_valid():
+            return Response({'success': False, 'errors': step3_serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+
+        # ── Build documents dict ──
+        documents = {
+            'selfie_with_id': request.FILES.get('selfie_with_id'),
+            'valid_id': request.FILES.get('valid_id'),
+            'barangay_permit': request.FILES.get('barangay_permit'),
+            'dti_sec_certificate': request.FILES.get('dti_sec_certificate'),
+            'bir_certificate': request.FILES.get('bir_certificate'),
+            'mayors_permit': request.FILES.get('mayors_permit'),
+        }
+        for idx, doc in enumerate(request.FILES.getlist('other_documents')):
+            documents[f'other_document_{idx}'] = doc
+
+        # ── Atomic save — nothing committed unless this succeeds ──
         try:
-            # If all steps arrive in one payload, delegate step 1+2 parsing to the service
-            if not merchant_id:
-                try:
-                    merchant_id = MerchantRegistrationService.resolve_merchant_from_single_payload(
-                        data=request.data,
-                        files=request.FILES,
-                        step1_serializer_class=Step1Serializer,
-                        step2_serializer_class=Step2Serializer,
-                    )
-                except ValidationError as ve:
-                    return Response({
-                        'success': False,
-                        'errors': ve.message_dict if hasattr(ve, 'message_dict') else ve.messages
-                    }, status=status.HTTP_400_BAD_REQUEST)
-
-            serializer = Step3Serializer(
-                data=request.data,
-                context={'merchant_id': merchant_id}
+            merchant, password = MerchantRegistrationService.register_merchant_atomic(
+                step1_data=step1_serializer.validated_data,
+                step2_data=step2_serializer.validated_data,
+                documents=documents,
             )
-
-            if not serializer.is_valid():
-                return Response({
-                    'success': False,
-                    'errors': serializer.errors
-                }, status=status.HTTP_400_BAD_REQUEST)
-
-            # Prepare documents dictionary
-            documents = {
-                'selfie_with_id': request.FILES.get('selfie_with_id'),
-                'valid_id': request.FILES.get('valid_id'),
-                'barangay_permit': request.FILES.get('barangay_permit'),
-                'dti_sec_certificate': request.FILES.get('dti_sec_certificate'),
-                'bir_certificate': request.FILES.get('bir_certificate'),
-                'mayors_permit': request.FILES.get('mayors_permit'),
-            }
-            
-            # Handle multiple other documents
-            other_docs = request.FILES.getlist('other_documents')
-            if other_docs:
-                for idx, doc in enumerate(other_docs):
-                    documents[f'other_document_{idx}'] = doc
-            
-            # Complete registration
-            merchant, password = MerchantRegistrationService.complete_registration(
-                merchant_id=merchant_id,
-                documents=documents
-            )
-            
-            # Send welcome email with password
-            email_sent = EmailService.send_welcome_email(
-                email=merchant.email,
-                business_name=merchant.business_name,
-                username=merchant.username,
-                password=password
-            )
-            
-            return Response({
-                'success': True,
-                'message': 'Registration completed successfully! Check your email for login credentials.',
-                'data': {
-                    'merchant_id': merchant.id,
-                    'email_sent': email_sent,
-                    'business_name': merchant.business_name,
-                    'status': merchant.status
-                }
-            }, status=status.HTTP_201_CREATED)
-        
-        except Merchant.DoesNotExist:
-            return Response({
-                'success': False,
-                'message': 'Merchant not found'
-            }, status=status.HTTP_404_NOT_FOUND)
-        
+        except ValidationError as ve:
+            errors = ve.message_dict if hasattr(ve, 'message_dict') else {'detail': ve.messages}
+            return Response({'success': False, 'errors': errors}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            return Response({
-                'success': False,
-                'message': str(e)
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({'success': False, 'message': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        # ── Send welcome email (after successful DB commit) ──
+        email_sent = EmailService.send_welcome_email(
+            email=merchant.email,
+            business_name=merchant.business_name,
+            username=merchant.username,
+            password=password,
+        )
+
+        return Response({
+            'success': True,
+            'message': 'Registration completed successfully! Check your email for login credentials.',
+            'data': {
+                'merchant_id': merchant.id,
+                'email_sent': email_sent,
+                'business_name': merchant.business_name,
+                'status': merchant.status,
+            }
+        }, status=status.HTTP_201_CREATED)
 
 
 class MerchantLoginView(APIView):
