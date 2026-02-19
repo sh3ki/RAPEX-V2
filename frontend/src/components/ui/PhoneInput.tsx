@@ -6,11 +6,12 @@ interface PhoneInputProps {
   label: string;
   value: string;
   onChange: (value: string) => void;
+  onBlur?: () => void;
   error?: string;
   required?: boolean;
 }
 
-export default function PhoneInput({ label, value, onChange, error, required }: PhoneInputProps) {
+export default function PhoneInput({ label, value, onChange, onBlur, error, required }: PhoneInputProps) {
   const formatPhoneNumber = (input: string) => {
     // Remove all non-digit characters except the input
     const digits = input.replace(/\D/g, '');
@@ -64,6 +65,7 @@ export default function PhoneInput({ label, value, onChange, error, required }: 
         value={value || '+63'}
         onChange={handleChange}
         onKeyDown={handleKeyDown}
+        onBlur={onBlur}
         placeholder="+63 912 123 1234"
         maxLength={17}
         className={`w-full px-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 transition-all duration-200 ${
