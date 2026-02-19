@@ -76,4 +76,24 @@ export const merchantAPI = {
     const response = await apiClient.get(`/merchants/register/progress/${merchantId}/`);
     return response.data;
   },
+
+  // Forgot password flow
+  forgotPasswordSendOTP: async (email: string) => {
+    const response = await apiClient.post('/merchants/forgot-password/send-otp/', { email });
+    return response.data;
+  },
+
+  forgotPasswordVerifyOTP: async (email: string, otp: string) => {
+    const response = await apiClient.post('/merchants/forgot-password/verify-otp/', { email, otp });
+    return response.data;
+  },
+
+  forgotPasswordReset: async (email: string, new_password: string, confirm_password: string) => {
+    const response = await apiClient.post('/merchants/forgot-password/reset/', {
+      email,
+      new_password,
+      confirm_password,
+    });
+    return response.data;
+  },
 };
