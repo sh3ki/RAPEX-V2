@@ -1027,7 +1027,7 @@ export default function MerchantRegistrationForm() {
 
       {/* Footer */}
       <div className="relative z-10 mt-6 text-center text-white/80 text-sm">
-        © 2025 RAPEX. All rights reserved.
+        © 2026 RAPEX. All rights reserved.
       </div>
 
       {/* Map Picker Modal */}
