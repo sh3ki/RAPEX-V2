@@ -1,9 +1,8 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useLayoutEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import MerchantLayout from './MerchantLayout'
-import LoadingSpinner from '@/components/ui/LoadingSpinner'
 
 interface MerchantPageShellProps {
   /** Page title shown in filler content */
@@ -21,7 +20,9 @@ interface MerchantPageShellProps {
  *
  * Reusable shell for every merchant portal page.
  * - Performs auth guard (redirects to login if no token)
- * - Shows a centered LoadingSpinner while auth check runs
+ * - Uses useLayoutEffect so the sync localStorage check completes before
+ *   the browser paints — no spinner flash on every navigation.
+ *   The spinner (LoadingOverlay) is reserved for real async operations.
  * - Wraps content in MerchantLayout (sidebar + header)
  */
 const MerchantPageShell: React.FC<MerchantPageShellProps> = ({
@@ -33,7 +34,10 @@ const MerchantPageShell: React.FC<MerchantPageShellProps> = ({
   const router = useRouter()
   const [ready, setReady] = useState(false)
 
-  useEffect(() => {
+  // useLayoutEffect fires synchronously before browser paint.
+  // localStorage.getItem is instant (<1ms), so ready=true is set before
+  // anything renders — eliminating the spinner flash on every page nav.
+  useLayoutEffect(() => {
     const token = localStorage.getItem('access_token')
     const user = localStorage.getItem('user')
 
@@ -54,14 +58,9 @@ const MerchantPageShell: React.FC<MerchantPageShellProps> = ({
     setReady(true)
   }, [router])
 
-  // ── Loading state: spinner centered in full viewport ──────────────────────
-  if (!ready) {
-    return (
-      <div className="fixed inset-0 bg-gray-100 flex items-center justify-center z-50">
-        <LoadingSpinner size="lg" />
-      </div>
-    )
-  }
+  // ── Not yet verified: return null (invisible) — resolves before browser paints
+  // so users never see a blank flash. Spinner only renders for real async waits.
+  if (!ready) return null
 
   // ── Authenticated: render layout with content ────────────────────────────
   return (
