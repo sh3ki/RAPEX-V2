@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Bell, MessageSquare, ChevronDown, LogOut, Settings, User, ChevronRight } from 'lucide-react'
+import { Bell, MessageSquare, ChevronDown, LogOut, Settings, User, ChevronRight, Menu } from 'lucide-react'
 
 // ─── Breadcrumb Config ────────────────────────────────────────────────────────
 
@@ -123,8 +123,18 @@ const MerchantHeader: React.FC<MerchantHeaderProps> = ({ onToggleSidebar }) => {
 
   return (
     <header className="h-16 bg-white border-b border-gray-200 flex items-center px-4 sm:px-6 gap-4 flex-shrink-0 z-30">
-      {/* ── Left: Logo + Breadcrumb ── */}
+      {/* ── Left: Hamburger (mobile only) + Logo + Breadcrumb ── */}
       <div className="flex items-center gap-3 min-w-0 flex-1">
+        {/* Mobile hamburger – opens the sidebar drawer */}
+        <button
+          onClick={onToggleSidebar}
+          className="md:hidden p-2 rounded-lg text-gray-500 hover:text-gray-800 hover:bg-gray-100 transition-colors flex-shrink-0"
+          aria-label="Open navigation menu"
+          title="Open menu"
+        >
+          <Menu size={20} />
+        </button>
+
         {/* Section label */}
         <span className="text-xl font-extrabold tracking-tight bg-gradient-to-r from-orange-500 to-purple-500 bg-clip-text text-transparent flex-shrink-0 hidden sm:block select-none">
           MERCHANT
